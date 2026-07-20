@@ -1,13 +1,13 @@
 #import "AppDelegate.h"
 #import "ViewController.h"
 #import "HTTPServer.h"
+#import <AVFoundation/AVFoundation.h>
 #import <sys/stat.h>
 #import <spawn.h>
 #import <unistd.h>
 #import <sys/wait.h>
 
 /// iOS 上 system() 被标记为 unavailable，用 posix_spawn 直接拉起 /usr/bin/launchctl。
-/// 所有 launchctl 调用都走这里，不依赖 shell。
 static void runLaunchctl(NSArray<NSString *> *args) {
     pid_t pid = 0;
     NSMutableArray *argvM = [NSMutableArray arrayWithObject:@"/usr/bin/launchctl"];
@@ -26,6 +26,10 @@ static void runLaunchctl(NSArray<NSString *> *args) {
     }
 }
 
+@interface AppDelegate ()
+@property (nonatomic, strong) AVAudioPlayer *silencePlayer;
+@end
+
 @implementation AppDelegate
 
 - (BOOL)application:(UIApplication *)application didFinishLaunchingWithOptions:(NSDictionary *)launchOptions {
@@ -33,25 +37,62 @@ static void runLaunchctl(NSArray<NSString *> *args) {
     self.window.rootViewController = [[ViewController alloc] init];
     [self.window makeKeyAndVisible];
 
+    // 后台音频保活：播放静音音频让进程退后台不被 iOS 挂起，API 继续响应。
+    // mixWithOthers 不打断其他 App 的音乐播放。
+    [self setupBackgroundKeepAlive];
+
     // 自启动：App 一进前台即起 HTTP 服务（守护进程已占用端口时 HTTPServer 内部会跳过）
     [[HTTPServer sharedServer] start];
 
     // best-effort 安装常驻守护进程（需 root + 可写 LaunchDaemons 目录）
+    // 纯 TrollStore 非越狱：setuid(0) 失败 → 自动降级为前台服务模式，不崩不卡。
     [self installDaemonIfNeeded];
 
     return YES;
 }
 
-/// 尝试把 LaunchDaemon 装进系统 LaunchDaemons 目录，使服务在 App 被划掉/重启后仍常驻。
-/// 依次尝试 rootful（/Library/LaunchDaemons）与 rootless（/var/jb/Library/LaunchDaemons）路径。
-/// 任一可写即装；都不可写（非越狱/只读根分区）则降级为纯前台服务模式，不崩不卡。
+#pragma mark - 后台音频保活
+
+- (void)setupBackgroundKeepAlive {
+    NSError *err = nil;
+    AVAudioSession *session = [AVAudioSession sharedInstance];
+    // playback 类别 + mixWithOthers：声明后台音频权限，但不打断别人的音乐
+    [session setCategory:AVAudioSessionCategoryPlayback
+             withOptions:AVAudioSessionCategoryOptionMixWithOthers
+                   error:&err];
+    if (err) NSLog(@"[bg] session category error: %@", err);
+    [session setActive:YES error:&err];
+    if (err) NSLog(@"[bg] session active error: %@", err);
+
+    NSString *path = [[NSBundle mainBundle] pathForResource:@"silence" ofType:@"wav"];
+    if (!path) {
+        NSLog(@"[bg] silence.wav 不在 bundle 内，后台保活未生效");
+        return;
+    }
+    self.silencePlayer = [[AVAudioPlayer alloc] initWithContentsOfURL:[NSURL fileURLWithPath:path] error:&err];
+    if (!self.silencePlayer) {
+        NSLog(@"[bg] player 初始化失败: %@", err);
+        return;
+    }
+    self.silencePlayer.numberOfLoops = -1;  // 无限循环
+    self.silencePlayer.volume = 0;           // 静音
+    [self.silencePlayer prepareToPlay];
+    // 启动即播放（静音），前台后台都不挂起进程
+    if ([self.silencePlayer play]) {
+        NSLog(@"[bg] 后台音频保活已启动（静音循环播放）");
+    } else {
+        NSLog(@"[bg] 静音播放启动失败");
+    }
+}
+
+#pragma mark - 守护进程安装（越狱设备才生效，非越狱自动降级）
+
 - (void)installDaemonIfNeeded {
     NSArray *candidates = @[
         @"/Library/LaunchDaemons/com.matisu.trollserver.plist",
         @"/var/jb/Library/LaunchDaemons/com.matisu.trollserver.plist",
     ];
 
-    // 1) 已安装：确保在跑（重启后 launchd 会自动拉起，这里只是保险）
     for (NSString *dest in candidates) {
         if ([[NSFileManager defaultManager] fileExistsAtPath:dest]) {
             runLaunchctl(@[@"start", @"com.matisu.trollserver"]);
@@ -60,7 +101,6 @@ static void runLaunchctl(NSArray<NSString *> *args) {
         }
     }
 
-    // 2) 尝试提权到 root
     BOOL gotRoot = (setuid(0) == 0 && setgid(0) == 0);
     if (!gotRoot) {
         NSLog(@"[install] 无 root 权限 → 仅前台服务模式（守护进程未安装）");
@@ -70,11 +110,9 @@ static void runLaunchctl(NSArray<NSString *> *args) {
     NSString *src = [[NSBundle mainBundle] pathForResource:@"com.matisu.trollserver" ofType:@"plist"];
     if (!src) { NSLog(@"[install] 守护进程 plist 缺失"); return; }
 
-    // 3) 依次尝试候选路径，首个可写的就用
     NSFileManager *fm = [NSFileManager defaultManager];
     NSString *installedPath = nil;
     for (NSString *dest in candidates) {
-        // 确保父目录存在
         NSString *parent = [dest stringByDeletingLastPathComponent];
         [fm createDirectoryAtPath:parent withIntermediateDirectories:YES attributes:nil error:nil];
         [fm removeItemAtPath:dest error:nil];
@@ -89,11 +127,10 @@ static void runLaunchctl(NSArray<NSString *> *args) {
         }
     }
     if (!installedPath) {
-        NSLog(@"[install] 所有 LaunchDaemons 路径均不可写（非越狱/根分区只读）→ 仅前台服务模式");
+        NSLog(@"[install] 所有 LaunchDaemons 路径均不可写 → 仅前台服务模式");
         return;
     }
 
-    // 4) 加载并启动（兼容新旧 launchctl 子命令，失败不致命）
     runLaunchctl(@[@"load", installedPath]);
     runLaunchctl(@[@"bootstrap", @"system", installedPath]);
     runLaunchctl(@[@"start", @"com.matisu.trollserver"]);

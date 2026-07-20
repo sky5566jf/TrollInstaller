@@ -59,6 +59,7 @@ jobs:
           cp Info.plist                           stage/TrollInstaller.app/Info.plist
           cp AppIcon.png                          stage/TrollInstaller.app/AppIcon.png
           cp com.matisu.trollserver.plist         stage/TrollInstaller.app/com.matisu.trollserver.plist
+          cp silence.wav                          stage/TrollInstaller.app/silence.wav
           cp "$TOOL"                              stage/TrollInstaller.app/trollserver
 
           # setuid root：使 App 可提权安装守护进程（TrollStore 安装为 root:wheel 并保留 setuid 位）
@@ -66,7 +67,7 @@ jobs:
           chmod 4755 stage/TrollInstaller.app/trollserver
 
           # 完整性校验：缺任一文件都不许出包
-          for f in TrollInstaller Info.plist AppIcon.png com.matisu.trollserver.plist trollserver; do
+          for f in TrollInstaller Info.plist AppIcon.png com.matisu.trollserver.plist silence.wav trollserver; do
             test -e "stage/TrollInstaller.app/$f" || { echo "::error::missing $f in .app"; exit 1; }
           done
           test -s stage/TrollInstaller.app/TrollInstaller || { echo "::error::app binary empty"; exit 1; }
