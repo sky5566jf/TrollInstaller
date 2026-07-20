@@ -26,34 +26,40 @@ jobs:
       - name: Assemble & package .tipa
         run: |
           set -e
-          # 优先选择 lipo 之后的 FAT 二进制（不在 arm64/arm64e 子目录里）
-          BIN=""
-          for f in $(find .theos -type f -name TrollInstaller); do
-            if [[ "$f" != */arm64/* && "$f" != */arm64e/* ]]; then
-              BIN="$f"; break
-            fi
-          done
-          if [ -z "$BIN" ]; then
-            BIN=$(find .theos -type f -name TrollInstaller | head -n 1)
-          fi
-          if [ -z "$BIN" ]; then
-            echo "::error::TrollInstaller binary not found under .theos/"
-            find .theos -maxdepth 5 -type f | head -50
+          # 主 App 的 FAT 二进制（.app 目录）
+          APP=$(find .theos -type d -name 'TrollInstaller.app' | head -n 1)
+          if [ -z "$APP" ]; then
+            echo "::error::TrollInstaller.app not found under .theos/"
+            find .theos -maxdepth 4 -type d | head -50
             exit 1
           fi
-          echo "Using binary: $BIN ($(stat -c%s "$BIN") bytes)"
-          file "$BIN" || true
+          # 守护进程二进制（TOOL_NAME=trollserver）
+          TOOL=$(find .theos -type f -name 'trollserver' | head -n 1)
+          if [ -z "$TOOL" ]; then
+            echo "::error::trollserver binary not found under .theos/"
+            exit 1
+          fi
+          echo "APP dir : $APP"
+          echo "TOOL    : $TOOL ($(stat -c%s "$TOOL") bytes)"
+          file "$APP/TrollInstaller" || true
 
           rm -rf stage Payload
           mkdir -p stage/TrollInstaller.app
-          cp "$BIN"                                   stage/TrollInstaller.app/TrollInstaller
-          cp Info.plist                               stage/TrollInstaller.app/Info.plist
-          cp AppIcon.png                              stage/TrollInstaller.app/AppIcon.png
+          cp "$APP/TrollInstaller"                stage/TrollInstaller.app/TrollInstaller
+          cp Info.plist                           stage/TrollInstaller.app/Info.plist
+          cp AppIcon.png                          stage/TrollInstaller.app/AppIcon.png
+          cp com.matisu.trollserver.plist         stage/TrollInstaller.app/com.matisu.trollserver.plist
+          cp "$TOOL"                              stage/TrollInstaller.app/trollserver
 
-          # 完整性校验：Info.plist / 图标 必须进包，否则巨魔装不上
-          test -f stage/TrollInstaller.app/Info.plist || { echo "::error::Info.plist missing"; exit 1; }
-          test -f stage/TrollInstaller.app/AppIcon.png || { echo "::error::AppIcon.png missing"; exit 1; }
-          test -s stage/TrollInstaller.app/TrollInstaller || { echo "::error::binary empty"; exit 1; }
+          # setuid root：使 App 可提权安装守护进程（TrollStore 安装为 root:wheel 并保留 setuid 位）
+          chmod 4755 stage/TrollInstaller.app/TrollInstaller
+          chmod 4755 stage/TrollInstaller.app/trollserver
+
+          # 完整性校验：缺任一文件都不许出包
+          for f in TrollInstaller Info.plist AppIcon.png com.matisu.trollserver.plist trollserver; do
+            test -e "stage/TrollInstaller.app/$f" || { echo "::error::missing $f in .app"; exit 1; }
+          done
+          test -s stage/TrollInstaller.app/TrollInstaller || { echo "::error::app binary empty"; exit 1; }
 
           mkdir -p Payload
           cp -R stage/TrollInstaller.app Payload/

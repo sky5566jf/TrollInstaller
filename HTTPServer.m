@@ -1,5 +1,4 @@
 #import "HTTPServer.h"
-#import <UIKit/UIKit.h>
 #import <dispatch/dispatch.h>
 
 #include <sys/socket.h>
@@ -10,8 +9,19 @@
 
 #define TI_PORT 8588
 
+/*
+ * LSApplicationWorkspace 在 App 与守护进程(daemon) 两种上下文都能打开 URL，
+ * 不依赖 UIApplication，因此后台守护进程也能弹出巨魔安装框。
+ * 仅在运行时通过 NSClassFromString 调用，无需链接私有框架，Linux 交叉编译也能过。
+ */
+@interface LSApplicationWorkspace : NSObject
++ (id)defaultWorkspace;
+- (BOOL)openURL:(NSURL *)url;
+@end
+
 @implementation HTTPServer {
     BOOL _running;
+    int _listenSock;
 }
 
 + (instancetype)sharedServer {
@@ -21,15 +31,27 @@
     return s;
 }
 
+- (int)port { return TI_PORT; }
+
 - (void)start {
-    if (_running) return;
-    _running = YES;
-    [NSThread detachNewThreadSelector:@selector(runLoop) toTarget:self withObject:nil];
+    NSError *e = nil;
+    if (![self start:&e]) {
+        NSLog(@"[HTTPServer] 未启动(可能守护进程已占用 :%d): %@",
+              TI_PORT, e.localizedDescription);
+    } else {
+        NSLog(@"[HTTPServer] 监听 :%d", TI_PORT);
+    }
 }
 
-- (void)runLoop {
+- (BOOL)start:(NSError **)error {
+    if (_running) return YES;
+
     int sock = socket(AF_INET, SOCK_STREAM, 0);
-    if (sock < 0) { _running = NO; return; }
+    if (sock < 0) {
+        if (error) *error = [NSError errorWithDomain:@"HTTPServer" code:1
+                                userInfo:@{NSLocalizedDescriptionKey:@"socket() 失败"}];
+        return NO;
+    }
 
     int yes = 1;
     setsockopt(sock, SOL_SOCKET, SO_REUSEADDR, &yes, sizeof(yes));
@@ -42,24 +64,38 @@
 
     if (bind(sock, (struct sockaddr *)&addr, sizeof(addr)) < 0) {
         close(sock);
-        _running = NO;
-        return;
+        if (error) *error = [NSError errorWithDomain:@"HTTPServer" code:2
+                                userInfo:@{NSLocalizedDescriptionKey:
+                                    [NSString stringWithFormat:@"bind :%d 失败(端口被占用?)", TI_PORT]}];
+        return NO;
     }
     if (listen(sock, 16) < 0) {
         close(sock);
-        _running = NO;
-        return;
+        if (error) *error = [NSError errorWithDomain:@"HTTPServer" code:3
+                                userInfo:@{NSLocalizedDescriptionKey:@"listen() 失败"}];
+        return NO;
     }
 
+    _listenSock = sock;
+    _running = YES;
+    [NSThread detachNewThreadSelector:@selector(runLoop) toTarget:self withObject:nil];
+    return YES;
+}
+
+- (void)runLoop {
     while (_running) {
-        int client = accept(sock, NULL, NULL);
-        if (client < 0) continue;
+        int client = accept(_listenSock, NULL, NULL);
+        if (client < 0) {
+            if (_running) continue;   // 被信号打断，继续等
+            break;
+        }
         @autoreleasepool {
             [self handleClient:client];
         }
         close(client);
     }
-    close(sock);
+    if (_listenSock >= 0) close(_listenSock);
+    _listenSock = -1;
 }
 
 - (void)handleClient:(int)client {
@@ -101,7 +137,7 @@
     }
 
     // 其它路径：返回简单状态
-    NSString *body = @"{\"status\":\"TrollInstaller API\",\"port\":8588}";
+    NSString *body = @"{\"status\":\"Matisu Troll Assistant API\",\"port\":8588}";
     [self send:client status:200 body:body type:@"application/json"];
 }
 
@@ -134,13 +170,25 @@
         return;
     }
 
-    // openURL 必须在主线程调用
-    dispatch_async(dispatch_get_main_queue(), ^{
-        [[UIApplication sharedApplication] openURL:u options:@{} completionHandler:nil];
-    });
+    [self triggerInstall:scheme];
 
     NSString *body = [NSString stringWithFormat:@"{\"status\":\"ok\",\"url\":\"%@\"}", decoded];
     [self send:client status:200 body:body type:@"application/json"];
+}
+
+/// 触发巨魔安装（App / 守护进程通用，无需 UIApplication）
+- (void)triggerInstall:(NSString *)scheme {
+    NSURL *u = [NSURL URLWithString:scheme];
+    if (!u) return;
+#pragma clang diagnostic push
+#pragma clang diagnostic ignored "-Warc-performSelector-leaks"
+    Class cls = NSClassFromString(@"LSApplicationWorkspace");
+    if (cls) {
+        id ws = [cls performSelector:@selector(defaultWorkspace)];
+        [ws performSelector:@selector(openURL:) withObject:u];
+    }
+#pragma clang diagnostic pop
+    NSLog(@"[HTTPServer] 已请求巨魔安装: %@", scheme);
 }
 
 - (void)send:(int)client status:(int)status body:(NSString *)body type:(NSString *)type {

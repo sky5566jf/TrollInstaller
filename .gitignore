@@ -18,3 +18,5 @@ mh*.png
 ghlog*.txt
 dl_artifact.py
 inspect_tipa.py
+monitor_build.py
+validate_tipa.py

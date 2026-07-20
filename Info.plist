@@ -3,11 +3,11 @@
 <plist version="1.0">
 <dict>
     <key>CFBundleName</key>
-    <string>TrollInstaller</string>
+    <string>Maitsu巨魔助手</string>
     <key>CFBundleDisplayName</key>
-    <string>TrollInstaller</string>
+    <string>Maitsu巨魔助手</string>
     <key>CFBundleIdentifier</key>
-    <string>com.trollinstaller.app</string>
+    <string>com.matisu.trollassistant</string>
     <key>CFBundleVersion</key>
     <string>1.0.0</string>
     <key>CFBundleShortVersionString</key>
