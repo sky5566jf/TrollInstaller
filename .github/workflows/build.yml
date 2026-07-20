@@ -38,6 +38,14 @@ jobs:
       - name: Assemble, sign & package .tipa
         run: |
           set -e
+          # theos 自带 ldid（toolchain/linux/iphone/bin/ldid），加入 PATH
+          export PATH="$THEOS/toolchain/linux/iphone/bin:$PATH"
+          # 兜底：PATH 里仍找不到就全 theos 目录搜一个
+          if ! command -v ldid &>/dev/null; then
+            LDID_FOUND=$(find "$THEOS" -name ldid -type f 2>/dev/null | head -1)
+            if [ -n "$LDID_FOUND" ]; then export PATH="$(dirname "$LDID_FOUND"):$PATH"; fi
+          fi
+          echo "ldid path: $(command -v ldid || echo 'NOT FOUND')"
           # 主 App 的 FAT 二进制（.app 目录）
           APP=$(find .theos -type d -name 'TrollInstaller.app' | head -n 1)
           if [ -z "$APP" ]; then
