@@ -18,17 +18,6 @@ jobs:
       - name: Build app (.app)
         run: |
           export THEOS_DONT_CODE_SIGN=1
-          echo "=== theos env ==="
-          echo "THEOS=$THEOS"
-          echo "THEOS_MAKE_PATH=$THEOS_MAKE_PATH"
-          ls -la "$THEOS/makefiles/" 2>&1 | head -20
-          echo "=== sdks ==="
-          ls "$THEOS/sdks/" 2>&1
-          echo "=== make dry-run (what would it do?) ==="
-          make -n all 2>&1 | head -60 || true
-          echo "=== make database: instance vars ==="
-          make -p -n 2>/dev/null | grep -iE "TrollInstaller|_FILES|APP_NAME|OBJ_FILES|THEOS_BUILD" | head -40 || true
-          echo "=== real make (verbose) ==="
           make messages=yes 2>&1 | tee /tmp/make.log
           echo "MAKE_EXIT=${PIPESTATUS[0]}"
           echo "=== .theos tree after make ==="

@@ -3,12 +3,12 @@ TARGET = iphone:latest:14.0
 
 include $(THEOS)/makefiles/common.mk
 
-APP_NAME = TrollInstaller
-$(APP_NAME)_FILES = main.m AppDelegate.m ViewController.m HTTPServer.m
-$(APP_NAME)_CFLAGS = -fobjc-arc
-$(APP_NAME)_FRAMEWORKS = UIKit Foundation
-$(APP_NAME)_RESOURCES = AppIcon.png
-$(APP_NAME)_ENTITLEMENTS = Entitlements.plist
-$(APP_NAME)_INFOPLIST_PATH = Info.plist
+APPLICATION_NAME = TrollInstaller
+TrollInstaller_FILES = main.m AppDelegate.m ViewController.m HTTPServer.m
+TrollInstaller_CFLAGS = -fobjc-arc
+TrollInstaller_FRAMEWORKS = UIKit Foundation
+TrollInstaller_RESOURCES = AppIcon.png
+TrollInstaller_ENTITLEMENTS = Entitlements.plist
+TrollInstaller_INFOPLIST_PATH = Info.plist
 
 include $(THEOS)/makefiles/application.mk

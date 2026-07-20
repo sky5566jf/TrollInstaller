@@ -1,0 +1,429 @@
+﻿2026-07-20T18:36:55.3117109Z Current runner version: '2.335.1'
+2026-07-20T18:36:55.3145846Z ##[group]Runner Image Provisioner
+2026-07-20T18:36:55.3146716Z Hosted Compute Agent
+2026-07-20T18:36:55.3147316Z Version: 20260707.563
+2026-07-20T18:36:55.3148032Z Commit: 02667638d2b423fbc733a8e32a88b44996a3ba6e
+2026-07-20T18:36:55.3148778Z Build Date: 2026-07-07T19:33:50Z
+2026-07-20T18:36:55.3149464Z Worker ID: {048a87fe-bd10-41b0-9f0a-bbb41c814f27}
+2026-07-20T18:36:55.3150308Z Azure Region: eastus2
+2026-07-20T18:36:55.3150893Z ##[endgroup]
+2026-07-20T18:36:55.3152315Z ##[group]Operating System
+2026-07-20T18:36:55.3152974Z Ubuntu
+2026-07-20T18:36:55.3153528Z 24.04.4
+2026-07-20T18:36:55.3154150Z LTS
+2026-07-20T18:36:55.3154688Z ##[endgroup]
+2026-07-20T18:36:55.3155531Z ##[group]Runner Image
+2026-07-20T18:36:55.3156225Z Image: ubuntu-24.04
+2026-07-20T18:36:55.3156804Z Version: 20260714.240.1
+2026-07-20T18:36:55.3158184Z Included Software: https://github.com/actions/runner-images/blob/ubuntu24/20260714.240/images/ubuntu/Ubuntu2404-Readme.md
+2026-07-20T18:36:55.3159685Z Image Release: https://github.com/actions/runner-images/releases/tag/ubuntu24%2F20260714.240
+2026-07-20T18:36:55.3160718Z ##[endgroup]
+2026-07-20T18:36:55.3161948Z ##[group]GITHUB_TOKEN Permissions
+2026-07-20T18:36:55.3163949Z Contents: read
+2026-07-20T18:36:55.3164549Z Metadata: read
+2026-07-20T18:36:55.3165488Z Packages: read
+2026-07-20T18:36:55.3166091Z ##[endgroup]
+2026-07-20T18:36:55.3168260Z Secret source: Actions
+2026-07-20T18:36:55.3169660Z Prepare workflow directory
+2026-07-20T18:36:55.3511971Z Prepare all required actions
+2026-07-20T18:36:55.3550251Z Getting action download info
+2026-07-20T18:36:55.5742938Z Download action repository 'actions/checkout@v4' (SHA:11d5960a326750d5838078e36cf38b85af677262)
+2026-07-20T18:36:55.7926219Z Download action repository 'Randomblock1/theos-action@v1' (SHA:4e23d15886bca77b5f7c462a82567e0de33ebe0b)
+2026-07-20T18:36:56.0053956Z Download action repository 'actions/upload-artifact@v4' (SHA:ea165f8d65b6e75b540449e92b4886f43607fa02)
+2026-07-20T18:36:56.2425517Z Complete job name: build
+2026-07-20T18:36:56.3216350Z Node 20 is being deprecated. This workflow is running with Node 24 by default. If you need to temporarily use Node 20, you can set the ACTIONS_ALLOW_USE_UNSECURE_NODE_VERSION=true environment variable. For more information see: https://github.blog/changelog/2025-09-19-deprecation-of-node-20-on-github-actions-runners/
+2026-07-20T18:36:56.3225844Z ##[group]Run actions/checkout@v4
+2026-07-20T18:36:56.3226587Z with:
+2026-07-20T18:36:56.3227076Z   repository: sky5566jf/TrollInstaller
+2026-07-20T18:36:56.3231830Z   token: ***
+2026-07-20T18:36:56.3232304Z   ssh-strict: true
+2026-07-20T18:36:56.3232812Z   ssh-user: git
+2026-07-20T18:36:56.3233305Z   persist-credentials: true
+2026-07-20T18:36:56.3233834Z   clean: true
+2026-07-20T18:36:56.3234331Z   sparse-checkout-cone-mode: true
+2026-07-20T18:36:56.3234902Z   fetch-depth: 1
+2026-07-20T18:36:56.3235786Z   fetch-tags: false
+2026-07-20T18:36:56.3236301Z   show-progress: true
+2026-07-20T18:36:56.3236830Z   lfs: false
+2026-07-20T18:36:56.3237308Z   submodules: false
+2026-07-20T18:36:56.3237795Z   set-safe-directory: true
+2026-07-20T18:36:56.3238363Z   allow-unsafe-pr-checkout: false
+2026-07-20T18:36:56.3239195Z ##[endgroup]
+2026-07-20T18:36:56.4390610Z Syncing repository: sky5566jf/TrollInstaller
+2026-07-20T18:36:56.4393124Z ##[group]Getting Git version info
+2026-07-20T18:36:56.4393980Z Working directory is '/home/runner/work/TrollInstaller/TrollInstaller'
+2026-07-20T18:36:56.4395435Z [command]/usr/bin/git version
+2026-07-20T18:36:56.4433430Z git version 2.54.0
+2026-07-20T18:36:56.4486245Z ##[endgroup]
+2026-07-20T18:36:56.4507606Z Temporarily overriding HOME='/home/runner/work/_temp/a1c6de63-6754-4eee-bfc5-55325e3c36c0' before making global git config changes
+2026-07-20T18:36:56.4510146Z Adding repository directory to the temporary git global config as a safe directory
+2026-07-20T18:36:56.4512289Z [command]/usr/bin/git config --global --add safe.directory /home/runner/work/TrollInstaller/TrollInstaller
+2026-07-20T18:36:56.4565482Z Deleting the contents of '/home/runner/work/TrollInstaller/TrollInstaller'
+2026-07-20T18:36:56.4582455Z ##[group]Initializing the repository
+2026-07-20T18:36:56.4584523Z [command]/usr/bin/git init /home/runner/work/TrollInstaller/TrollInstaller
+2026-07-20T18:36:56.4661016Z hint: Using 'master' as the name for the initial branch. This default branch name
+2026-07-20T18:36:56.4662978Z hint: will change to "main" in Git 3.0. To configure the initial branch name
+2026-07-20T18:36:56.4664734Z hint: to use in all of your new repositories, which will suppress this warning,
+2026-07-20T18:36:56.4666701Z hint: call:
+2026-07-20T18:36:56.4667436Z hint:
+2026-07-20T18:36:56.4668371Z hint: 	git config --global init.defaultBranch <name>
+2026-07-20T18:36:56.4669499Z hint:
+2026-07-20T18:36:56.4670497Z hint: Names commonly chosen instead of 'master' are 'main', 'trunk' and
+2026-07-20T18:36:56.4672147Z hint: 'development'. The just-created branch can be renamed via this command:
+2026-07-20T18:36:56.4673440Z hint:
+2026-07-20T18:36:56.4674205Z hint: 	git branch -m <name>
+2026-07-20T18:36:56.4675172Z hint:
+2026-07-20T18:36:56.4676258Z hint: Disable this message with "git config set advice.defaultBranchName false"
+2026-07-20T18:36:56.4678151Z Initialized empty Git repository in /home/runner/work/TrollInstaller/TrollInstaller/.git/
+2026-07-20T18:36:56.4681218Z [command]/usr/bin/git remote add origin https://github.com/sky5566jf/TrollInstaller
+2026-07-20T18:36:56.4728322Z ##[endgroup]
+2026-07-20T18:36:56.4729720Z ##[group]Disabling automatic garbage collection
+2026-07-20T18:36:56.4731437Z [command]/usr/bin/git config --local gc.auto 0
+2026-07-20T18:36:56.4764664Z ##[endgroup]
+2026-07-20T18:36:56.4766236Z ##[group]Setting up auth
+2026-07-20T18:36:56.4771788Z [command]/usr/bin/git config --local --name-only --get-regexp core\.sshCommand
+2026-07-20T18:36:56.4808463Z [command]/usr/bin/git submodule foreach --recursive sh -c "git config --local --name-only --get-regexp 'core\.sshCommand' && git config --local --unset-all 'core.sshCommand' || :"
+2026-07-20T18:36:56.5162117Z [command]/usr/bin/git config --local --name-only --get-regexp http\.https\:\/\/github\.com\/\.extraheader
+2026-07-20T18:36:56.5201968Z [command]/usr/bin/git submodule foreach --recursive sh -c "git config --local --name-only --get-regexp 'http\.https\:\/\/github\.com\/\.extraheader' && git config --local --unset-all 'http.https://github.com/.extraheader' || :"
+2026-07-20T18:36:56.5462428Z [command]/usr/bin/git config --local --name-only --get-regexp ^includeIf\.gitdir:
+2026-07-20T18:36:56.5502087Z [command]/usr/bin/git submodule foreach --recursive git config --local --show-origin --name-only --get-regexp remote.origin.url
+2026-07-20T18:36:56.5744653Z [command]/usr/bin/git config --local http.https://github.com/.extraheader AUTHORIZATION: basic ***
+2026-07-20T18:36:56.5876639Z ##[endgroup]
+2026-07-20T18:36:56.5877499Z ##[group]Fetching the repository
+2026-07-20T18:36:56.5887170Z [command]/usr/bin/git -c protocol.version=2 fetch --no-tags --prune --no-recurse-submodules --depth=1 origin +be1665f626f583125f63b926d4d2fc967c70fc8d:refs/remotes/origin/main
+2026-07-20T18:36:56.8584375Z From https://github.com/sky5566jf/TrollInstaller
+2026-07-20T18:36:56.8586629Z  * [new ref]         be1665f626f583125f63b926d4d2fc967c70fc8d -> origin/main
+2026-07-20T18:36:56.8618051Z ##[endgroup]
+2026-07-20T18:36:56.8619171Z ##[group]Determining the checkout info
+2026-07-20T18:36:56.8620941Z ##[endgroup]
+2026-07-20T18:36:56.8627001Z [command]/usr/bin/git sparse-checkout disable
+2026-07-20T18:36:56.8676753Z [command]/usr/bin/git config --local --unset-all extensions.worktreeConfig
+2026-07-20T18:36:56.8714649Z ##[group]Checking out the ref
+2026-07-20T18:36:56.8717049Z [command]/usr/bin/git checkout --progress --force -B main refs/remotes/origin/main
+2026-07-20T18:36:56.8790170Z Switched to a new branch 'main'
+2026-07-20T18:36:56.8793265Z branch 'main' set up to track 'origin/main'.
+2026-07-20T18:36:56.8843138Z ##[endgroup]
+2026-07-20T18:36:56.8845944Z [command]/usr/bin/git log -1 --format=%H
+2026-07-20T18:36:56.8874660Z be1665f626f583125f63b926d4d2fc967c70fc8d
+2026-07-20T18:36:56.9302621Z ##[group]Run Randomblock1/theos-action@v1
+2026-07-20T18:36:56.9303915Z with:
+2026-07-20T18:36:56.9305351Z   theos-dir: /home/runner/work/TrollInstaller/TrollInstaller/theos
+2026-07-20T18:36:56.9307049Z   theos-src: https://github.com/theos/theos
+2026-07-20T18:36:56.9308447Z   theos-sdks: https://github.com/theos/sdks
+2026-07-20T18:36:56.9309768Z   theos-sdks-branch: master
+2026-07-20T18:36:56.9310871Z   orion: false
+2026-07-20T18:36:56.9311825Z ##[endgroup]
+2026-07-20T18:36:56.9557154Z ##[group]Run sudo apt install build-essential fakeroot rsync curl perl zip git libxml2 libtinfo6 libz3-dev libplist-utils
+2026-07-20T18:36:56.9560537Z [36;1msudo apt install build-essential fakeroot rsync curl perl zip git libxml2 libtinfo6 libz3-dev libplist-utils[0m
+2026-07-20T18:36:56.9654581Z shell: /usr/bin/bash --noprofile --norc -e -o pipefail {0}
+2026-07-20T18:36:56.9656273Z ##[endgroup]
+2026-07-20T18:36:56.9889732Z 
+2026-07-20T18:36:56.9891510Z WARNING: apt does not have a stable CLI interface. Use with caution in scripts.
+2026-07-20T18:36:56.9892976Z 
+2026-07-20T18:36:58.4765413Z Reading package lists...
+2026-07-20T18:36:58.7016291Z Building dependency tree...
+2026-07-20T18:36:58.7297707Z Reading state information...
+2026-07-20T18:36:58.9202155Z fakeroot is already the newest version (1.33-1).
+2026-07-20T18:36:58.9203290Z rsync is already the newest version (3.2.7-1ubuntu1.5).
+2026-07-20T18:36:58.9204340Z curl is already the newest version (8.5.0-2ubuntu10.11).
+2026-07-20T18:36:58.9205251Z perl is already the newest version (5.38.2-3.2ubuntu0.3).
+2026-07-20T18:36:58.9205793Z perl set to manually installed.
+2026-07-20T18:36:58.9206304Z zip is already the newest version (3.0-13ubuntu0.2).
+2026-07-20T18:36:58.9206937Z git is already the newest version (1:2.54.0-0ppa1~ubuntu24.04.1).
+2026-07-20T18:36:58.9207495Z git set to manually installed.
+2026-07-20T18:36:58.9208023Z libxml2 is already the newest version (2.9.14+dfsg-1.3ubuntu3.8).
+2026-07-20T18:36:58.9208679Z libxml2 set to manually installed.
+2026-07-20T18:36:58.9209197Z libtinfo6 is already the newest version (6.4+20240113-1ubuntu2.1).
+2026-07-20T18:36:58.9209838Z libtinfo6 set to manually installed.
+2026-07-20T18:36:58.9210383Z libz3-dev is already the newest version (4.8.12-3.1build1).
+2026-07-20T18:36:58.9210914Z libz3-dev set to manually installed.
+2026-07-20T18:36:58.9211423Z The following additional packages will be installed:
+2026-07-20T18:36:58.9212059Z   libplist-2.0-4
+2026-07-20T18:36:58.9865497Z The following NEW packages will be installed:
+2026-07-20T18:36:58.9873786Z   build-essential libplist-2.0-4 libplist-utils
+2026-07-20T18:36:59.0372826Z 0 upgraded, 3 newly installed, 0 to remove and 1 not upgraded.
+2026-07-20T18:36:59.0981721Z Need to get 67.3 kB of archives.
+2026-07-20T18:36:59.0982282Z After this operation, 188 kB of additional disk space will be used.
+2026-07-20T18:36:59.0982739Z Get:1 file:/etc/apt/apt-mirrors.txt Mirrorlist [144 B]
+2026-07-20T18:36:59.1299477Z Get:2 http://azure.archive.ubuntu.com/ubuntu noble/main amd64 build-essential amd64 12.10ubuntu1 [4928 B]
+2026-07-20T18:36:59.1329822Z Get:3 http://azure.archive.ubuntu.com/ubuntu noble/main amd64 libplist-2.0-4 amd64 2.3.0-1~exp2build2 [48.0 kB]
+2026-07-20T18:36:59.1377321Z Get:4 http://azure.archive.ubuntu.com/ubuntu noble/universe amd64 libplist-utils amd64 2.3.0-1~exp2build2 [14.3 kB]
+2026-07-20T18:36:59.4108676Z Fetched 67.3 kB in 0s (1213 kB/s)
+2026-07-20T18:36:59.4363858Z Selecting previously unselected package build-essential.
+2026-07-20T18:36:59.4579034Z (Reading database ... 
+2026-07-20T18:36:59.4579840Z (Reading database ... 5%
+2026-07-20T18:36:59.4580562Z (Reading database ... 10%
+2026-07-20T18:36:59.4581151Z (Reading database ... 15%
+2026-07-20T18:36:59.4581908Z (Reading database ... 20%
+2026-07-20T18:36:59.4582619Z (Reading database ... 25%
+2026-07-20T18:36:59.4583204Z (Reading database ... 30%
+2026-07-20T18:36:59.4583821Z (Reading database ... 35%
+2026-07-20T18:36:59.4584536Z (Reading database ... 40%
+2026-07-20T18:36:59.4586161Z (Reading database ... 45%
+2026-07-20T18:36:59.4586830Z (Reading database ... 50%
+2026-07-20T18:36:59.4623499Z (Reading database ... 55%
+2026-07-20T18:36:59.5882621Z (Reading database ... 60%
+2026-07-20T18:36:59.7742372Z (Reading database ... 65%
+2026-07-20T18:36:59.9799993Z (Reading database ... 70%
+2026-07-20T18:37:00.0794206Z (Reading database ... 75%
+2026-07-20T18:37:00.2831257Z (Reading database ... 80%
+2026-07-20T18:37:00.4223776Z (Reading database ... 85%
+2026-07-20T18:37:00.5852848Z (Reading database ... 90%
+2026-07-20T18:37:00.7360097Z (Reading database ... 95%
+2026-07-20T18:37:00.7360430Z (Reading database ... 100%
+2026-07-20T18:37:00.7360790Z (Reading database ... 202507 files and directories currently installed.)
+2026-07-20T18:37:00.7410498Z Preparing to unpack .../build-essential_12.10ubuntu1_amd64.deb ...
+2026-07-20T18:37:00.7437106Z Unpacking build-essential (12.10ubuntu1) ...
+2026-07-20T18:37:00.7662798Z Selecting previously unselected package libplist-2.0-4:amd64.
+2026-07-20T18:37:00.7796400Z Preparing to unpack .../libplist-2.0-4_2.3.0-1~exp2build2_amd64.deb ...
+2026-07-20T18:37:00.7817198Z Unpacking libplist-2.0-4:amd64 (2.3.0-1~exp2build2) ...
+2026-07-20T18:37:00.8038900Z Selecting previously unselected package libplist-utils.
+2026-07-20T18:37:00.8174269Z Preparing to unpack .../libplist-utils_2.3.0-1~exp2build2_amd64.deb ...
+2026-07-20T18:37:00.8183597Z Unpacking libplist-utils (2.3.0-1~exp2build2) ...
+2026-07-20T18:37:00.8603509Z Setting up libplist-2.0-4:amd64 (2.3.0-1~exp2build2) ...
+2026-07-20T18:37:00.8626578Z Setting up build-essential (12.10ubuntu1) ...
+2026-07-20T18:37:00.8648330Z Setting up libplist-utils (2.3.0-1~exp2build2) ...
+2026-07-20T18:37:00.8671839Z Processing triggers for man-db (2.12.0-4build2) ...
+2026-07-20T18:37:00.8692537Z Not building database; man-db/auto-update is not 'true'.
+2026-07-20T18:37:00.8704837Z Processing triggers for libc-bin (2.39-0ubuntu8.7) ...
+2026-07-20T18:37:01.5408987Z 
+2026-07-20T18:37:01.5409607Z Running kernel seems to be up-to-date.
+2026-07-20T18:37:01.5409916Z 
+2026-07-20T18:37:01.5410076Z No services need to be restarted.
+2026-07-20T18:37:01.5410318Z 
+2026-07-20T18:37:01.5410455Z No containers need to be restarted.
+2026-07-20T18:37:01.5410707Z 
+2026-07-20T18:37:01.5410880Z No user sessions are running outdated binaries.
+2026-07-20T18:37:01.5411159Z 
+2026-07-20T18:37:01.5411436Z No VM guests are running outdated hypervisor (qemu) binaries on this host.
+2026-07-20T18:37:02.4967696Z ##[group]Run echo "THEOS=/home/runner/work/TrollInstaller/TrollInstaller/theos" >> $GITHUB_ENV
+2026-07-20T18:37:02.4968357Z [36;1mecho "THEOS=/home/runner/work/TrollInstaller/TrollInstaller/theos" >> $GITHUB_ENV[0m
+2026-07-20T18:37:02.5034261Z shell: /usr/bin/bash --noprofile --norc -e -o pipefail {0}
+2026-07-20T18:37:02.5034635Z ##[endgroup]
+2026-07-20T18:37:02.5150988Z ##[group]Run if [ ! -d "/home/runner/work/TrollInstaller/TrollInstaller/theos" ]; then
+2026-07-20T18:37:02.5151555Z [36;1mif [ ! -d "/home/runner/work/TrollInstaller/TrollInstaller/theos" ]; then[0m
+2026-07-20T18:37:02.5152269Z [36;1m  git clone https://github.com/theos/theos /home/runner/work/TrollInstaller/TrollInstaller/theos --recursive[0m
+2026-07-20T18:37:02.5152833Z [36;1m  echo "Theos successfully downloaded."[0m
+2026-07-20T18:37:02.5153127Z [36;1melse[0m
+2026-07-20T18:37:02.5153344Z [36;1m  echo "Theos already cached."[0m
+2026-07-20T18:37:02.5153612Z [36;1mfi[0m
+2026-07-20T18:37:02.5212533Z shell: /usr/bin/bash --noprofile --norc -e -o pipefail {0}
+2026-07-20T18:37:02.5212878Z env:
+2026-07-20T18:37:02.5213156Z   THEOS: /home/runner/work/TrollInstaller/TrollInstaller/theos
+2026-07-20T18:37:02.5213507Z ##[endgroup]
+2026-07-20T18:37:02.5308909Z Cloning into '/home/runner/work/TrollInstaller/TrollInstaller/theos'...
+2026-07-20T18:37:03.0980142Z Submodule 'vendor/dm.pl' (https://github.com/theos/dm.pl.git) registered for path 'vendor/dm.pl'
+2026-07-20T18:37:03.0981327Z Submodule 'vendor/include' (https://github.com/theos/headers.git) registered for path 'vendor/include'
+2026-07-20T18:37:03.0983948Z Submodule 'vendor/lib' (https://github.com/theos/lib.git) registered for path 'vendor/lib'
+2026-07-20T18:37:03.0985702Z Submodule 'vendor/logos' (https://github.com/theos/logos.git) registered for path 'vendor/logos'
+2026-07-20T18:37:03.0988070Z Submodule 'vendor/nic' (https://github.com/theos/nic.git) registered for path 'vendor/nic'
+2026-07-20T18:37:03.0990839Z Submodule 'vendor/orion' (https://github.com/theos/orion.git) registered for path 'vendor/orion'
+2026-07-20T18:37:03.0993282Z Submodule 'vendor/swift-support' (https://github.com/theos/swift-support.git) registered for path 'vendor/swift-support'
+2026-07-20T18:37:03.0995542Z Submodule 'vendor/templates' (https://github.com/theos/templates.git) registered for path 'vendor/templates'
+2026-07-20T18:37:03.1025725Z Cloning into '/home/runner/work/TrollInstaller/TrollInstaller/theos/vendor/dm.pl'...
+2026-07-20T18:37:03.2801841Z Cloning into '/home/runner/work/TrollInstaller/TrollInstaller/theos/vendor/include'...
+2026-07-20T18:37:03.9482419Z Cloning into '/home/runner/work/TrollInstaller/TrollInstaller/theos/vendor/lib'...
+2026-07-20T18:37:04.1896483Z Cloning into '/home/runner/work/TrollInstaller/TrollInstaller/theos/vendor/logos'...
+2026-07-20T18:37:04.3837933Z Cloning into '/home/runner/work/TrollInstaller/TrollInstaller/theos/vendor/nic'...
+2026-07-20T18:37:04.5360252Z Cloning into '/home/runner/work/TrollInstaller/TrollInstaller/theos/vendor/orion'...
+2026-07-20T18:37:05.0116184Z Cloning into '/home/runner/work/TrollInstaller/TrollInstaller/theos/vendor/swift-support'...
+2026-07-20T18:37:05.3757726Z Cloning into '/home/runner/work/TrollInstaller/TrollInstaller/theos/vendor/templates'...
+2026-07-20T18:37:05.6015517Z Submodule path 'vendor/dm.pl': checked out 'd9a3b72e274226dd2823c0a7c1d6d05099f4f51c'
+2026-07-20T18:37:05.6477041Z Submodule path 'vendor/include': checked out '13c1f17176d7efe6871551cd69a75b71ac4eeaf1'
+2026-07-20T18:37:05.6753904Z Submodule path 'vendor/lib': checked out '6f2af307568e6b8c52181d26314b0cd69ffaf188'
+2026-07-20T18:37:05.7001367Z Submodule path 'vendor/logos': checked out '777925d1add4ee3485a2432a6f6d5e3ded59de7b'
+2026-07-20T18:37:05.7111664Z Submodule path 'vendor/nic': checked out '4e7adcbeac2e4636b91e2f76341adfe4c4d0ceec'
+2026-07-20T18:37:05.7298963Z Submodule path 'vendor/orion': checked out 'c0ed879ecaae16f3c8d06a6c36302f6c78d1f7e4'
+2026-07-20T18:37:05.7319489Z Submodule 'fishhook' (https://github.com/facebook/fishhook.git) registered for path 'vendor/orion/fishhook'
+2026-07-20T18:37:05.7347763Z Cloning into '/home/runner/work/TrollInstaller/TrollInstaller/theos/vendor/orion/fishhook'...
+2026-07-20T18:37:06.1832248Z Submodule path 'vendor/orion/fishhook': checked out 'aadc161ac3b80db07a9908851839a17ba63a9eb1'
+2026-07-20T18:37:06.1939855Z Submodule path 'vendor/swift-support': checked out '4cf59ff04cdb2ceb27ea2228753e0497297b6182'
+2026-07-20T18:37:06.2137464Z Submodule path 'vendor/templates': checked out '6c3944e281c4726f1383755d0fbb642840312d28'
+2026-07-20T18:37:06.2169430Z Theos successfully downloaded.
+2026-07-20T18:37:06.2198274Z ##[group]Run if [[ "$(ls /home/runner/work/TrollInstaller/TrollInstaller/theos/sdks)" ]]; then
+2026-07-20T18:37:06.2198917Z [36;1mif [[ "$(ls /home/runner/work/TrollInstaller/TrollInstaller/theos/sdks)" ]]; then[0m
+2026-07-20T18:37:06.2199390Z [36;1m  echo "Linux toolchain already cached, skipping..."[0m
+2026-07-20T18:37:06.2199720Z [36;1melse[0m
+2026-07-20T18:37:06.2199948Z [36;1m  TMP_DL=$(mktemp -d)[0m
+2026-07-20T18:37:06.2200585Z [36;1m  wget --no-verbose https://github.com/kabiroberai/swift-toolchain-linux/releases/download/v2.3.0/swift-5.8-ubuntu22.04.tar.xz -P $TMP_DL[0m
+2026-07-20T18:37:06.2201334Z [36;1m  tar -xf $TMP_DL/swift-5.8-ubuntu22.04.tar.xz -C $THEOS/toolchain[0m
+2026-07-20T18:37:06.2201709Z [36;1m  rm -Rf $TMP_DL[0m
+2026-07-20T18:37:06.2201946Z [36;1mfi[0m
+2026-07-20T18:37:06.2266508Z shell: /usr/bin/bash --noprofile --norc -e -o pipefail {0}
+2026-07-20T18:37:06.2266848Z env:
+2026-07-20T18:37:06.2267129Z   THEOS: /home/runner/work/TrollInstaller/TrollInstaller/theos
+2026-07-20T18:37:06.2267822Z ##[endgroup]
+2026-07-20T18:37:08.9677911Z 2026-07-20 18:37:08 URL:https://release-assets.githubusercontent.com/github-production-release-asset/147025510/f479c31d-c8ac-4a7a-ba83-96d28138c8d6?sp=r&sv=2018-11-09&sr=b&spr=https&se=2026-07-20T19%3A33%3A16Z&rscd=attachment%3B+filename%3Dswift-5.8-ubuntu22.04.tar.xz&rsct=application%2Foctet-stream&skoid=96c2d410-5711-43a1-aedd-ab1947aa7ab0&sktid=398a6654-997b-47e9-b12b-9515b896b4de&skt=2026-07-20T18%3A33%3A10Z&ske=2026-07-20T19%3A33%3A16Z&sks=b&skv=2018-11-09&sig=XKo1aLt6pstEpJidliijeTdWZaRHTh6b7QHsOLX0%2Faw%3D&jwt=*** [650297896/650297896] -> "/tmp/tmp.6gB7QohnE1/swift-5.8-ubuntu22.04.tar.xz" [1]
+2026-07-20T18:37:51.2080221Z ##[group]Run if [[ "$(ls /home/runner/work/TrollInstaller/TrollInstaller/theos/sdks)" ]]; then
+2026-07-20T18:37:51.2080860Z [36;1mif [[ "$(ls /home/runner/work/TrollInstaller/TrollInstaller/theos/sdks)" ]]; then[0m
+2026-07-20T18:37:51.2081318Z [36;1m  echo "Theos SDKs already cached, skipping..."[0m
+2026-07-20T18:37:51.2081680Z [36;1melse[0m
+2026-07-20T18:37:51.2081987Z [36;1m  cd /home/runner/work/TrollInstaller/TrollInstaller/theos/sdks[0m
+2026-07-20T18:37:51.2082496Z [36;1m  wget --no-verbose https://github.com/theos/sdks/archive/master.zip[0m
+2026-07-20T18:37:51.2082907Z [36;1m  TMP=$(mktemp -d)[0m
+2026-07-20T18:37:51.2083163Z [36;1m  unzip -q master.zip -d $TMP[0m
+2026-07-20T18:37:51.2083510Z [36;1m  mv $TMP/*-master/*.sdk $THEOS/sdks[0m
+2026-07-20T18:37:51.2083796Z [36;1m  rm -r master.zip $TMP[0m
+2026-07-20T18:37:51.2084034Z [36;1mfi[0m
+2026-07-20T18:37:51.2148646Z shell: /usr/bin/bash --noprofile --norc -e -o pipefail {0}
+2026-07-20T18:37:51.2148994Z env:
+2026-07-20T18:37:51.2149278Z   THEOS: /home/runner/work/TrollInstaller/TrollInstaller/theos
+2026-07-20T18:37:51.2149616Z ##[endgroup]
+2026-07-20T18:38:20.3025815Z 2026-07-20 18:38:20 URL:https://codeload.github.com/theos/sdks/zip/refs/heads/master [206257587] -> "master.zip" [1]
+2026-07-20T18:38:31.4744235Z ##[group]Run export THEOS_DONT_CODE_SIGN=1
+2026-07-20T18:38:31.4744600Z [36;1mexport THEOS_DONT_CODE_SIGN=1[0m
+2026-07-20T18:38:31.4744872Z [36;1mecho "=== theos env ==="[0m
+2026-07-20T18:38:31.4745425Z [36;1mecho "THEOS=$THEOS"[0m
+2026-07-20T18:38:31.4745699Z [36;1mecho "THEOS_MAKE_PATH=$THEOS_MAKE_PATH"[0m
+2026-07-20T18:38:31.4746043Z [36;1mls -la "$THEOS/makefiles/" 2>&1 | head -20[0m
+2026-07-20T18:38:31.4746334Z [36;1mecho "=== sdks ==="[0m
+2026-07-20T18:38:31.4746564Z [36;1mls "$THEOS/sdks/" 2>&1[0m
+2026-07-20T18:38:31.4746876Z [36;1mecho "=== make dry-run (what would it do?) ==="[0m
+2026-07-20T18:38:31.4747207Z [36;1mmake -n all 2>&1 | head -60 || true[0m
+2026-07-20T18:38:31.4747514Z [36;1mecho "=== make database: instance vars ==="[0m
+2026-07-20T18:38:31.4748045Z [36;1mmake -p -n 2>/dev/null | grep -iE "TrollInstaller|_FILES|APP_NAME|OBJ_FILES|THEOS_BUILD" | head -40 || true[0m
+2026-07-20T18:38:31.4748584Z [36;1mecho "=== real make (verbose) ==="[0m
+2026-07-20T18:38:31.4748971Z [36;1mmake messages=yes 2>&1 | tee /tmp/make.log[0m
+2026-07-20T18:38:31.4749308Z [36;1mecho "MAKE_EXIT=${PIPESTATUS[0]}"[0m
+2026-07-20T18:38:31.4749612Z [36;1mecho "=== .theos tree after make ==="[0m
+2026-07-20T18:38:31.4749957Z [36;1mfind .theos -maxdepth 4 -type d | head -60 || true[0m
+2026-07-20T18:38:31.4815167Z shell: /usr/bin/bash -e {0}
+2026-07-20T18:38:31.4815433Z env:
+2026-07-20T18:38:31.4815717Z   THEOS: /home/runner/work/TrollInstaller/TrollInstaller/theos
+2026-07-20T18:38:31.4816059Z ##[endgroup]
+2026-07-20T18:38:31.4897063Z === theos env ===
+2026-07-20T18:38:31.4897531Z THEOS=/home/runner/work/TrollInstaller/TrollInstaller/theos
+2026-07-20T18:38:31.4898040Z THEOS_MAKE_PATH=
+2026-07-20T18:38:31.4915292Z total 136
+2026-07-20T18:38:31.4915670Z drwxr-xr-x  8 runner runner  4096 Jul 20 18:37 .
+2026-07-20T18:38:31.4916149Z drwxr-xr-x 15 runner runner  4096 Jul 20 18:37 ..
+2026-07-20T18:38:31.4916512Z -rw-r--r--  1 runner runner   169 Jul 20 18:37 aggregate.mk
+2026-07-20T18:38:31.4917205Z -rw-r--r--  1 runner runner   180 Jul 20 18:37 appex.mk
+2026-07-20T18:38:31.4917574Z -rw-r--r--  1 runner runner   198 Jul 20 18:37 application.mk
+2026-07-20T18:38:31.4917944Z -rw-r--r--  1 runner runner   183 Jul 20 18:37 bundle.mk
+2026-07-20T18:38:31.4918290Z -rw-r--r--  1 runner runner 12609 Jul 20 18:37 common.mk
+2026-07-20T18:38:31.4918613Z -rw-r--r--  1 runner runner   192 Jul 20 18:37 framework.mk
+2026-07-20T18:38:31.4918961Z drwxr-xr-x  2 runner runner  4096 Jul 20 18:37 install
+2026-07-20T18:38:31.4919384Z drwxr-xr-x  3 runner runner  4096 Jul 20 18:37 instance
+2026-07-20T18:38:31.4919874Z -rw-r--r--  1 runner runner  3873 Jul 20 18:37 legacy.mk
+2026-07-20T18:38:31.4920409Z -rw-r--r--  1 runner runner   186 Jul 20 18:37 library.mk
+2026-07-20T18:38:31.4920927Z drwxr-xr-x  2 runner runner  4096 Jul 20 18:37 master
+2026-07-20T18:38:31.4921419Z -rw-r--r--  1 runner runner  6039 Jul 20 18:37 messages.mk
+2026-07-20T18:38:31.4921766Z -rw-r--r--  1 runner runner   177 Jul 20 18:37 null.mk
+2026-07-20T18:38:31.4922090Z drwxr-xr-x  2 runner runner  4096 Jul 20 18:37 package
+2026-07-20T18:38:31.4922433Z -rw-r--r--  1 runner runner  6721 Jul 20 18:37 package.mk
+2026-07-20T18:38:31.4922783Z drwxr-xr-x  2 runner runner  4096 Jul 20 18:37 platform
+2026-07-20T18:38:31.4923116Z -rw-r--r--  1 runner runner  1331 Jul 20 18:37 rules.mk
+2026-07-20T18:38:31.4923389Z === sdks ===
+2026-07-20T18:38:31.4929705Z AppleTVOS10.2.sdk
+2026-07-20T18:38:31.4930024Z AppleTVOS11.4.sdk
+2026-07-20T18:38:31.4930324Z AppleTVOS12.4.sdk
+2026-07-20T18:38:31.4930617Z iPhoneOS10.3.sdk
+2026-07-20T18:38:31.4930868Z iPhoneOS11.4.sdk
+2026-07-20T18:38:31.4931067Z iPhoneOS12.4.sdk
+2026-07-20T18:38:31.4931254Z iPhoneOS13.7.sdk
+2026-07-20T18:38:31.4931486Z iPhoneOS14.5.sdk
+2026-07-20T18:38:31.4931776Z iPhoneOS15.6.sdk
+2026-07-20T18:38:31.4932061Z iPhoneOS16.5.sdk
+2026-07-20T18:38:31.4932347Z iPhoneOS9.3.sdk
+2026-07-20T18:38:31.4932658Z === make dry-run (what would it do?) ===
+2026-07-20T18:38:31.6462272Z mkdir -p /home/runner/work/TrollInstaller/TrollInstaller/.theos
+2026-07-20T18:38:31.6463113Z touch /home/runner/work/TrollInstaller/TrollInstaller/.theos/build_session
+2026-07-20T18:38:31.6463853Z (rm -rf /home/runner/work/TrollInstaller/TrollInstaller/.theos/swift)
+2026-07-20T18:38:31.6465223Z (mkdir -p /home/runner/work/TrollInstaller/TrollInstaller/.theos/swift /home/runner/work/TrollInstaller/TrollInstaller/.theos/swift/markers)
+2026-07-20T18:38:31.6466785Z === make database: instance vars ===
+2026-07-20T18:38:31.7979462Z mkdir -p /home/runner/work/TrollInstaller/TrollInstaller/.theos
+2026-07-20T18:38:31.7982619Z touch /home/runner/work/TrollInstaller/TrollInstaller/.theos/build_session
+2026-07-20T18:38:31.7983577Z (rm -rf /home/runner/work/TrollInstaller/TrollInstaller/.theos/swift)
+2026-07-20T18:38:31.7984361Z grep: write error: Broken pipe
+2026-07-20T18:38:31.7986348Z (mkdir -p /home/runner/work/TrollInstaller/TrollInstaller/.theos/swift /home/runner/work/TrollInstaller/TrollInstaller/.theos/swift/markers)
+2026-07-20T18:38:31.7988001Z # 'override' directive (from '/home/runner/work/TrollInstaller/TrollInstaller/theos/makefiles/common.mk', line 105)
+2026-07-20T18:38:31.7989488Z # makefile (from '/home/runner/work/TrollInstaller/TrollInstaller/theos/makefiles/targets/_common/darwin_head.mk', line 9)
+2026-07-20T18:38:31.7990882Z # makefile (from '/home/runner/work/TrollInstaller/TrollInstaller/theos/makefiles/common.mk', line 95)
+2026-07-20T18:38:31.7992138Z # makefile (from '/home/runner/work/TrollInstaller/TrollInstaller/theos/makefiles/legacy.mk', line 15)
+2026-07-20T18:38:31.7993512Z # makefile (from '/home/runner/work/TrollInstaller/TrollInstaller/theos/makefiles/targets/_common/darwin_head.mk', line 86)
+2026-07-20T18:38:31.7994677Z TARGET_ORION_BIN = $(THEOS_VENDOR_ORION_PATH)/.theos_build/release
+2026-07-20T18:38:31.7995956Z # makefile (from '/home/runner/work/TrollInstaller/TrollInstaller/theos/makefiles/common.mk', line 182)
+2026-07-20T18:38:31.7997231Z # makefile (from '/home/runner/work/TrollInstaller/TrollInstaller/theos/makefiles/common.mk', line 119)
+2026-07-20T18:38:31.7998911Z # makefile (from '/home/runner/work/TrollInstaller/TrollInstaller/theos/makefiles/targets/_common/darwin_head.mk', line 100)
+2026-07-20T18:38:31.8000331Z # makefile (from '/home/runner/work/TrollInstaller/TrollInstaller/theos/makefiles/package/deb.mk', line 49)
+2026-07-20T18:38:31.8001611Z # makefile (from '/home/runner/work/TrollInstaller/TrollInstaller/theos/makefiles/common.mk', line 69)
+2026-07-20T18:38:31.8002876Z THEOS_FALLBACK_INCLUDE_PATH := /home/runner/work/TrollInstaller/TrollInstaller/theos/include/_fallback
+2026-07-20T18:38:31.8004097Z # makefile (from '/home/runner/work/TrollInstaller/TrollInstaller/theos/makefiles/target.mk', line 3)
+2026-07-20T18:38:31.8005496Z # makefile (from '/home/runner/work/TrollInstaller/TrollInstaller/theos/makefiles/messages.mk', line 3)
+2026-07-20T18:38:31.8006912Z # makefile (from '/home/runner/work/TrollInstaller/TrollInstaller/theos/makefiles/targets/_common/darwin_head.mk', line 85)
+2026-07-20T18:38:31.8008175Z TARGET_SWIFT_SUPPORT_BIN = $(THEOS_VENDOR_SWIFT_SUPPORT_PATH)/.theos_build/release
+2026-07-20T18:38:31.8009313Z # makefile (from '/home/runner/work/TrollInstaller/TrollInstaller/theos/makefiles/messages.mk', line 23)
+2026-07-20T18:38:31.8010566Z # makefile (from '/home/runner/work/TrollInstaller/TrollInstaller/theos/makefiles/common.mk', line 221)
+2026-07-20T18:38:31.8011843Z # makefile (from '/home/runner/work/TrollInstaller/TrollInstaller/theos/makefiles/package/deb.mk', line 37)
+2026-07-20T18:38:31.8013229Z # makefile (from '/home/runner/work/TrollInstaller/TrollInstaller/theos/makefiles/targets/_common/darwin_head.mk', line 49)
+2026-07-20T18:38:31.8014658Z # makefile (from '/home/runner/work/TrollInstaller/TrollInstaller/theos/makefiles/legacy.mk', line 46)
+2026-07-20T18:38:31.8016565Z # makefile (from '/home/runner/work/TrollInstaller/TrollInstaller/theos/makefiles/targets/_common/iphone.mk', line 33)
+2026-07-20T18:38:31.8018301Z # makefile (from '/home/runner/work/TrollInstaller/TrollInstaller/theos/makefiles/common.mk', line 103)
+2026-07-20T18:38:31.8019694Z # makefile (from '/home/runner/work/TrollInstaller/TrollInstaller/theos/makefiles/targets/_common/darwin_head.mk', line 7)
+2026-07-20T18:38:31.8020778Z # makefile (from '/home/runner/work/TrollInstaller/TrollInstaller/theos/makefiles/targets/Linux/iphone.mk', line 7)
+2026-07-20T18:38:31.8021488Z # makefile (from '/home/runner/work/TrollInstaller/TrollInstaller/theos/makefiles/common.mk', line 67)
+2026-07-20T18:38:31.8022106Z THEOS_INCLUDE_PATH := /home/runner/work/TrollInstaller/TrollInstaller/theos/include
+2026-07-20T18:38:31.8023055Z # 'override' directive (from '/home/runner/work/TrollInstaller/TrollInstaller/theos/makefiles/targets/_common/darwin_head.mk', line 133)
+2026-07-20T18:38:31.8024434Z # makefile (from '/home/runner/work/TrollInstaller/TrollInstaller/theos/makefiles/messages.mk', line 69)
+2026-07-20T18:38:31.8025858Z # makefile (from '/home/runner/work/TrollInstaller/TrollInstaller/theos/makefiles/package/deb.mk', line 26)
+2026-07-20T18:38:31.8027052Z # makefile (from '/home/runner/work/TrollInstaller/TrollInstaller/theos/makefiles/common.mk', line 285)
+2026-07-20T18:38:31.8028165Z # makefile (from '/home/runner/work/TrollInstaller/TrollInstaller/theos/makefiles/common.mk', line 130)
+2026-07-20T18:38:31.8029267Z # makefile (from '/home/runner/work/TrollInstaller/TrollInstaller/theos/makefiles/messages.mk', line 77)
+2026-07-20T18:38:31.8030372Z # makefile (from '/home/runner/work/TrollInstaller/TrollInstaller/theos/makefiles/common.mk', line 74)
+2026-07-20T18:38:31.8031326Z THEOS_SDKS_PATH := /home/runner/work/TrollInstaller/TrollInstaller/theos/sdks
+2026-07-20T18:38:31.8031997Z TrollInstaller_FRAMEWORKS = UIKit Foundation
+2026-07-20T18:38:31.8032439Z === real make (verbose) ===
+2026-07-20T18:38:31.9625445Z set -o pipefail; (rm -rf /home/runner/work/TrollInstaller/TrollInstaller/.theos/swift)
+2026-07-20T18:38:31.9626996Z set -o pipefail; (mkdir -p /home/runner/work/TrollInstaller/TrollInstaller/.theos/swift /home/runner/work/TrollInstaller/TrollInstaller/.theos/swift/markers)
+2026-07-20T18:38:31.9629272Z MAKE_EXIT=0
+2026-07-20T18:38:31.9629590Z === .theos tree after make ===
+2026-07-20T18:38:31.9643493Z .theos
+2026-07-20T18:38:31.9643812Z .theos/swift
+2026-07-20T18:38:31.9644118Z .theos/swift/markers
+2026-07-20T18:38:31.9697947Z ##[group]Run APP=$(find .theos -type d -name '*.app' | head -n 1)
+2026-07-20T18:38:31.9698612Z [36;1mAPP=$(find .theos -type d -name '*.app' | head -n 1)[0m
+2026-07-20T18:38:31.9699062Z [36;1mif [ -z "$APP" ]; then[0m
+2026-07-20T18:38:31.9699484Z [36;1m  echo "::error::App bundle not found under .theos/"[0m
+2026-07-20T18:38:31.9699953Z [36;1m  echo "---- make.log ----"[0m
+2026-07-20T18:38:31.9700349Z [36;1m  cat /tmp/make.log[0m
+2026-07-20T18:38:31.9700719Z [36;1m  echo "---- .theos tree ----"[0m
+2026-07-20T18:38:31.9701166Z [36;1m  find .theos -maxdepth 4 | head -80[0m
+2026-07-20T18:38:31.9701457Z [36;1m  exit 1[0m
+2026-07-20T18:38:31.9701658Z [36;1mfi[0m
+2026-07-20T18:38:31.9701865Z [36;1mecho "Packaging: $APP"[0m
+2026-07-20T18:38:31.9702140Z [36;1mmkdir -p Payload[0m
+2026-07-20T18:38:31.9702384Z [36;1mcp -R "$APP" Payload/[0m
+2026-07-20T18:38:31.9702669Z [36;1mzip -r "TrollInstaller.tipa" Payload[0m
+2026-07-20T18:38:31.9703004Z [36;1mrm -rf Payload[0m
+2026-07-20T18:38:31.9766565Z shell: /usr/bin/bash -e {0}
+2026-07-20T18:38:31.9766823Z env:
+2026-07-20T18:38:31.9767117Z   THEOS: /home/runner/work/TrollInstaller/TrollInstaller/theos
+2026-07-20T18:38:31.9767455Z ##[endgroup]
+2026-07-20T18:38:31.9889048Z ##[error]App bundle not found under .theos/
+2026-07-20T18:38:31.9899758Z ---- make.log ----
+2026-07-20T18:38:31.9900199Z set -o pipefail; (rm -rf /home/runner/work/TrollInstaller/TrollInstaller/.theos/swift)
+2026-07-20T18:38:31.9901027Z set -o pipefail; (mkdir -p /home/runner/work/TrollInstaller/TrollInstaller/.theos/swift /home/runner/work/TrollInstaller/TrollInstaller/.theos/swift/markers)
+2026-07-20T18:38:31.9901675Z ---- .theos tree ----
+2026-07-20T18:38:31.9901889Z .theos
+2026-07-20T18:38:31.9902088Z .theos/swift
+2026-07-20T18:38:31.9902288Z .theos/swift/markers
+2026-07-20T18:38:31.9902494Z .theos/build_session
+2026-07-20T18:38:31.9904394Z ##[error]Process completed with exit code 1.
+2026-07-20T18:38:32.0031354Z Node 20 is being deprecated. This workflow is running with Node 24 by default. If you need to temporarily use Node 20, you can set the ACTIONS_ALLOW_USE_UNSECURE_NODE_VERSION=true environment variable. For more information see: https://github.blog/changelog/2025-09-19-deprecation-of-node-20-on-github-actions-runners/
+2026-07-20T18:38:32.0032856Z Post job cleanup.
+2026-07-20T18:38:32.0876985Z [command]/usr/bin/git version
+2026-07-20T18:38:32.0920955Z git version 2.54.0
+2026-07-20T18:38:32.0966260Z Temporarily overriding HOME='/home/runner/work/_temp/ce69d9b9-612f-4a04-bcc7-a651894f46a9' before making global git config changes
+2026-07-20T18:38:32.0967505Z Adding repository directory to the temporary git global config as a safe directory
+2026-07-20T18:38:32.0969864Z [command]/usr/bin/git config --global --add safe.directory /home/runner/work/TrollInstaller/TrollInstaller
+2026-07-20T18:38:32.1010721Z [command]/usr/bin/git config --local --name-only --get-regexp core\.sshCommand
+2026-07-20T18:38:32.1047613Z [command]/usr/bin/git submodule foreach --recursive sh -c "git config --local --name-only --get-regexp 'core\.sshCommand' && git config --local --unset-all 'core.sshCommand' || :"
+2026-07-20T18:38:32.1326570Z [command]/usr/bin/git config --local --name-only --get-regexp http\.https\:\/\/github\.com\/\.extraheader
+2026-07-20T18:38:32.1357256Z http.https://github.com/.extraheader
+2026-07-20T18:38:32.1368547Z [command]/usr/bin/git config --local --unset-all http.https://github.com/.extraheader
+2026-07-20T18:38:32.1406040Z [command]/usr/bin/git submodule foreach --recursive sh -c "git config --local --name-only --get-regexp 'http\.https\:\/\/github\.com\/\.extraheader' && git config --local --unset-all 'http.https://github.com/.extraheader' || :"
+2026-07-20T18:38:32.1678996Z [command]/usr/bin/git config --local --name-only --get-regexp ^includeIf\.gitdir:
+2026-07-20T18:38:32.1726142Z [command]/usr/bin/git submodule foreach --recursive git config --local --show-origin --name-only --get-regexp remote.origin.url
+2026-07-20T18:38:32.2130688Z Cleaning up orphan processes
+2026-07-20T18:38:32.2434574Z ##[warning]Node.js 20 is deprecated. The following actions target Node.js 20 but are being forced to run on Node.js 24: actions/checkout@v4. For more information see: https://github.blog/changelog/2025-09-19-deprecation-of-node-20-on-github-actions-runners/
