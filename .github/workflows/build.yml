@@ -8,29 +8,15 @@ on:
 jobs:
   build:
     runs-on: ubuntu-latest
-    env:
-      THEOS: ${{ github.workspace }}/theos
     steps:
       - name: Checkout
         uses: actions/checkout@v4
 
-      - name: Install build dependencies
-        run: |
-          sudo apt-get update
-          sudo apt-get install -y --no-install-recommends \
-            git build-essential clang make fakeroot \
-            libxml2-dev libssl-dev python3 zip unzip curl
-          sudo apt-get clean
-
-      - name: Set up Theos
-        run: |
-          git clone --recursive https://github.com/theos/theos.git "$THEOS"
-          rm -rf "$THEOS/sdks"
-          git clone --depth 1 https://github.com/theos/sdks "$THEOS/sdks"
+      - name: Install Theos (Linux)
+        uses: Randomblock1/theos-action@v1
 
       - name: Build app (.app)
         run: |
-          export PATH="$THEOS/bin:$PATH"
           export THEOS_DONT_CODE_SIGN=1
           make
 

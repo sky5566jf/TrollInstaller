@@ -13,3 +13,4 @@ mh*.png
 
 # WorkBuddy internal memory (not part of the app)
 .workbuddy/
+ghlog.txt
