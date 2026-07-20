@@ -1,0 +1,15 @@
+# Theos build output
+.theos/
+Payload/
+*.tipa
+obj/
+
+# Source asset (AppIcon.png is the generated build asset)
+mh*.png
+
+# Editor / OS noise
+.DS_Store
+*.swp
+
+# WorkBuddy internal memory (not part of the app)
+.workbuddy/

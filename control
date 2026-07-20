@@ -1,0 +1,8 @@
+Package: com.trollinstaller.app
+Name: TrollInstaller
+Version: 1.0.0
+Architecture: iphoneos-arm
+Description: TrollStore installer trigger API on port 8588
+Maintainer: TrollInstaller <dev@example.com>
+Author: TrollInstaller <dev@example.com>
+Section: Utilities
