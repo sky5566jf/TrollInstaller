@@ -25,6 +25,7 @@ jobs:
       - name: Set up Theos
         run: |
           git clone --recursive https://github.com/theos/theos.git "$THEOS"
+          rm -rf "$THEOS/sdks"
           git clone --depth 1 https://github.com/theos/sdks "$THEOS/sdks"
 
       - name: Build app (.app)
