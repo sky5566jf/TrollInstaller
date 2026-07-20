@@ -18,14 +18,24 @@ jobs:
       - name: Build app (.app)
         run: |
           export THEOS_DONT_CODE_SIGN=1
-          make
+          echo "=== cwd / Makefile ==="
+          pwd
+          ls -la Makefile
+          echo "=== running make (verbose) ==="
+          make messages=yes 2>&1 | tee /tmp/make.log
+          echo "MAKE_EXIT=${PIPESTATUS[0]}"
+          echo "=== .theos tree after make ==="
+          find .theos -maxdepth 4 -type d | head -60 || true
 
       - name: Package .tipa
         run: |
           APP=$(find .theos -type d -name '*.app' | head -n 1)
           if [ -z "$APP" ]; then
             echo "::error::App bundle not found under .theos/"
-            find .theos -maxdepth 3 -type d | head -50
+            echo "---- make.log ----"
+            cat /tmp/make.log
+            echo "---- .theos tree ----"
+            find .theos -maxdepth 4 | head -80
             exit 1
           fi
           echo "Packaging: $APP"
