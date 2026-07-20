@@ -15,30 +15,52 @@ jobs:
       - name: Install Theos (Linux)
         uses: Randomblock1/theos-action@v1
 
-      - name: Build app (.app)
+      - name: Build app (FAT binary)
         run: |
           export THEOS_DONT_CODE_SIGN=1
           make messages=yes 2>&1 | tee /tmp/make.log
           echo "MAKE_EXIT=${PIPESTATUS[0]}"
-          echo "=== .theos tree after make ==="
-          find .theos -maxdepth 4 -type d | head -60 || true
+          echo "=== .theos object tree ==="
+          find .theos/obj -maxdepth 3 -type f -name TrollInstaller | sort || true
 
-      - name: Package .tipa
+      - name: Assemble & package .tipa
         run: |
-          APP=$(find .theos -type d -name '*.app' | head -n 1)
-          if [ -z "$APP" ]; then
-            echo "::error::App bundle not found under .theos/"
-            echo "---- make.log ----"
-            cat /tmp/make.log
-            echo "---- .theos tree ----"
-            find .theos -maxdepth 4 | head -80
+          set -e
+          # 优先选择 lipo 之后的 FAT 二进制（不在 arm64/arm64e 子目录里）
+          BIN=""
+          for f in $(find .theos -type f -name TrollInstaller); do
+            if [[ "$f" != */arm64/* && "$f" != */arm64e/* ]]; then
+              BIN="$f"; break
+            fi
+          done
+          if [ -z "$BIN" ]; then
+            BIN=$(find .theos -type f -name TrollInstaller | head -n 1)
+          fi
+          if [ -z "$BIN" ]; then
+            echo "::error::TrollInstaller binary not found under .theos/"
+            find .theos -maxdepth 5 -type f | head -50
             exit 1
           fi
-          echo "Packaging: $APP"
+          echo "Using binary: $BIN ($(stat -c%s "$BIN") bytes)"
+          file "$BIN" || true
+
+          rm -rf stage Payload
+          mkdir -p stage/TrollInstaller.app
+          cp "$BIN"                                   stage/TrollInstaller.app/TrollInstaller
+          cp Info.plist                               stage/TrollInstaller.app/Info.plist
+          cp AppIcon.png                              stage/TrollInstaller.app/AppIcon.png
+
+          # 完整性校验：Info.plist / 图标 必须进包，否则巨魔装不上
+          test -f stage/TrollInstaller.app/Info.plist || { echo "::error::Info.plist missing"; exit 1; }
+          test -f stage/TrollInstaller.app/AppIcon.png || { echo "::error::AppIcon.png missing"; exit 1; }
+          test -s stage/TrollInstaller.app/TrollInstaller || { echo "::error::binary empty"; exit 1; }
+
           mkdir -p Payload
-          cp -R "$APP" Payload/
-          zip -r "TrollInstaller.tipa" Payload
-          rm -rf Payload
+          cp -R stage/TrollInstaller.app Payload/
+          zip -r TrollInstaller.tipa Payload
+          echo "=== final .tipa contents ==="
+          unzip -l TrollInstaller.tipa
+          rm -rf stage Payload
 
       - name: Upload artifact
         uses: actions/upload-artifact@v4

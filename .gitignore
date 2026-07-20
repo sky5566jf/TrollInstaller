@@ -13,4 +13,8 @@ mh*.png
 
 # WorkBuddy internal memory (not part of the app)
 .workbuddy/
-ghlog.txt
+
+# Local diagnostic / helper artifacts (not part of the app)
+ghlog*.txt
+dl_artifact.py
+inspect_tipa.py
