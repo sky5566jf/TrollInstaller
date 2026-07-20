@@ -7,15 +7,20 @@ on:
 
 jobs:
   build:
-    runs-on: macos-latest
+    runs-on: ubuntu-latest
     env:
       THEOS: ${{ github.workspace }}/theos
     steps:
       - name: Checkout
         uses: actions/checkout@v4
 
-      - name: Install ldid
-        run: brew install ldid
+      - name: Install build dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends \
+            git build-essential clang make fakeroot \
+            libxml2-dev libssl-dev python3 zip unzip curl
+          sudo apt-get clean
 
       - name: Set up Theos
         run: |
@@ -23,13 +28,17 @@ jobs:
           git clone --depth 1 https://github.com/theos/sdks "$THEOS/sdks"
 
       - name: Build app (.app)
-        run: make
+        run: |
+          export PATH="$THEOS/bin:$PATH"
+          export THEOS_DONT_CODE_SIGN=1
+          make
 
       - name: Package .tipa
         run: |
           APP=$(find .theos -type d -name '*.app' | head -n 1)
           if [ -z "$APP" ]; then
             echo "::error::App bundle not found under .theos/"
+            find .theos -maxdepth 3 -type d | head -50
             exit 1
           fi
           echo "Packaging: $APP"
