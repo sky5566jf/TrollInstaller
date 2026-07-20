@@ -20,3 +20,4 @@ dl_artifact.py
 inspect_tipa.py
 monitor_build.py
 validate_tipa.py
+fetch_and_validate.py

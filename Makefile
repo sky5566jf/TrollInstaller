@@ -3,21 +3,24 @@ TARGET = iphone:latest:14.0
 
 include $(THEOS)/makefiles/common.mk
 
-# ---- 主 App（前台 + UI）----
+# ---- 主 App（前台 UI + posix_spawn 拉起 supervisor）----
 APPLICATION_NAME = TrollInstaller
 TrollInstaller_FILES = main.m AppDelegate.m ViewController.m HTTPServer.m
 TrollInstaller_CFLAGS = -fobjc-arc
-TrollInstaller_FRAMEWORKS = UIKit Foundation AVFoundation
-TrollInstaller_RESOURCES = AppIcon.png com.matisu.trollserver.plist silence.wav
+TrollInstaller_FRAMEWORKS = UIKit Foundation
+TrollInstaller_RESOURCES = AppIcon.png
 TrollInstaller_ENTITLEMENTS = Entitlements.plist
 TrollInstaller_INFOPLIST_PATH = Info.plist
 
-# ---- 常驻守护进程（后台服务，独立二进制，由 launchd 拉起）----
-TOOL_NAME = trollserver
-trollserver_FILES = daemon_main.m HTTPServer.m
-trollserver_CFLAGS = -fobjc-arc
-trollserver_FRAMEWORKS = Foundation
-trollserver_INSTALL_PATH = /Applications/TrollInstaller.app
+# ---- 常驻监督器(resident supervisor) ----
+# 纯 TrollStore 非越狱下实现"App 划掉后 API 继续"的核心：
+#   setsid() 脱离 App 进程组 + 忽略 SIGHUP/SIGTERM → App 死 supervisor 不死
+# 参考 TrollVNC trollvncmanager 的 resident supervisor 模式
+TOOL_NAME = matisusupervisor
+matisusupervisor_FILES = supervisor_main.m HTTPServer.m
+matisusupervisor_CFLAGS = -fobjc-arc -DTHEBOOTSTRAP=1
+matisusupervisor_FRAMEWORKS = Foundation
+matisusupervisor_ENTITLEMENTS = supervisor.entitlements
 
 include $(THEOS)/makefiles/application.mk
 include $(THEOS)/makefiles/tool.mk

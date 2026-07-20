@@ -2,14 +2,21 @@
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
 <plist version="1.0">
 <dict>
+    <!-- 网络权限：监听 8588 -->
     <key>com.apple.security.network.server</key>
     <true/>
     <key>com.apple.security.network.client</key>
     <true/>
-    <key>platform-application</key>
-    <true/>
+
+    <!-- 脱离 App 沙盒容器：使 supervisor 能在 App 死后独立存活 -->
     <key>com.apple.private.security.no-container</key>
     <true/>
+
+    <!-- 平台应用身份 -->
+    <key>platform-application</key>
+    <true/>
+
+    <!-- LSApplicationWorkspace openURL: 触发巨魔安装 -->
     <key>com.apple.springboard.opensensitiveurl</key>
     <true/>
     <key>com.apple.springboard.appcontrol</key>
@@ -20,5 +27,11 @@
         <string>com.apple.frontboard.systemappservice</string>
         <string>com.apple.lsd.applicationdb</string>
     </array>
+
+    <!-- 容器管理(rootless 相关) -->
+    <key>com.apple.private.security.container-manager</key>
+    <true/>
+    <key>com.apple.rootless.install</key>
+    <true/>
 </dict>
 </plist>

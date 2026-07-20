@@ -15,7 +15,7 @@ jobs:
       - name: Install Theos (Linux)
         uses: Randomblock1/theos-action@v1
 
-      - name: Build app (FAT binary)
+      - name: Build app & supervisor (FAT binary)
         run: |
           export THEOS_DONT_CODE_SIGN=1
           make messages=yes 2>&1 | tee /tmp/make.log
@@ -26,14 +26,16 @@ jobs:
             tail -40 /tmp/make.log
             exit 1
           fi
-          echo "=== .theos object tree (TrollInstaller) ==="
+          echo "=== TrollInstaller binary ==="
           find .theos/obj -maxdepth 4 -type f -name TrollInstaller | sort || true
-          echo "=== .theos object tree (trollserver) ==="
-          find .theos/obj -maxdepth 4 -type f -name trollserver | sort || true
-          echo "=== .theos .app dirs ==="
+          echo "=== matisusupervisor binary ==="
+          find .theos/obj -maxdepth 4 -type f -name matisusupervisor | sort || true
+          echo "=== .app dirs ==="
           find .theos -maxdepth 4 -type d -name '*.app' | sort || true
+          echo "=== ldid check ==="
+          which ldid && ldid 2>&1 | head -1 || echo "ldid not found in PATH"
 
-      - name: Assemble & package .tipa
+      - name: Assemble, sign & package .tipa
         run: |
           set -e
           # 主 App 的 FAT 二进制（.app 目录）
@@ -43,34 +45,49 @@ jobs:
             find .theos -maxdepth 4 -type d | head -50
             exit 1
           fi
-          # 守护进程二进制（TOOL_NAME=trollserver）
-          TOOL=$(find .theos -type f -name 'trollserver' | head -n 1)
-          if [ -z "$TOOL" ]; then
-            echo "::error::trollserver binary not found under .theos/"
+          # 常驻监督器二进制
+          SUP=$(find .theos -type f -name 'matisusupervisor' | head -n 1)
+          if [ -z "$SUP" ]; then
+            echo "::error::matisusupervisor binary not found under .theos/"
             exit 1
           fi
           echo "APP dir : $APP"
-          echo "TOOL    : $TOOL ($(stat -c%s "$TOOL") bytes)"
+          echo "SUP     : $SUP ($(stat -c%s "$SUP") bytes)"
           file "$APP/TrollInstaller" || true
+          file "$SUP" || true
 
           rm -rf stage Payload
           mkdir -p stage/TrollInstaller.app
-          cp "$APP/TrollInstaller"                stage/TrollInstaller.app/TrollInstaller
-          cp Info.plist                           stage/TrollInstaller.app/Info.plist
-          cp AppIcon.png                          stage/TrollInstaller.app/AppIcon.png
-          cp com.matisu.trollserver.plist         stage/TrollInstaller.app/com.matisu.trollserver.plist
-          cp silence.wav                          stage/TrollInstaller.app/silence.wav
-          cp "$TOOL"                              stage/TrollInstaller.app/trollserver
+          cp "$APP/TrollInstaller"     stage/TrollInstaller.app/TrollInstaller
+          cp "$SUP"                    stage/TrollInstaller.app/matisusupervisor
+          cp Info.plist                stage/TrollInstaller.app/Info.plist
+          cp AppIcon.png               stage/TrollInstaller.app/AppIcon.png
 
-          # setuid root：使 App 可提权安装守护进程（TrollStore 安装为 root:wheel 并保留 setuid 位）
-          chmod 4755 stage/TrollInstaller.app/TrollInstaller
-          chmod 4755 stage/TrollInstaller.app/trollserver
+          # ── ldid ad-hoc 签名 + 嵌入 entitlements ──
+          # 这一步至关重要：entitlements (no-container / springboard.opensensitiveurl 等)
+          # 让 supervisor 脱离 App 沙盒，setsid + 忽略信号才能在 App 死后生效。
+          # TrollStore 利用 CoreTrust 绕过，不验证签名链，只验证签名存在 + entitlements 合法。
+          if ! command -v ldid &>/dev/null; then
+            echo "::error::ldid not found — cannot embed entitlements"
+            exit 1
+          fi
+          echo "=== ldid signing TrollInstaller with Entitlements.plist ==="
+          ldid -SEntitlements.plist stage/TrollInstaller.app/TrollInstaller
+          echo "=== ldid signing matisusupervisor with supervisor.entitlements ==="
+          ldid -Ssupervisor.entitlements stage/TrollInstaller.app/matisusupervisor
+          echo "=== verifying entitlements embedded ==="
+          ldid -e stage/TrollInstaller.app/matisusupervisor | head -5 || true
+
+          # 权限（不需要 setuid — resident supervisor 不依赖 root 提权）
+          chmod 0755 stage/TrollInstaller.app/TrollInstaller
+          chmod 0755 stage/TrollInstaller.app/matisusupervisor
 
           # 完整性校验：缺任一文件都不许出包
-          for f in TrollInstaller Info.plist AppIcon.png com.matisu.trollserver.plist silence.wav trollserver; do
+          for f in TrollInstaller matisusupervisor Info.plist AppIcon.png; do
             test -e "stage/TrollInstaller.app/$f" || { echo "::error::missing $f in .app"; exit 1; }
           done
           test -s stage/TrollInstaller.app/TrollInstaller || { echo "::error::app binary empty"; exit 1; }
+          test -s stage/TrollInstaller.app/matisusupervisor || { echo "::error::supervisor binary empty"; exit 1; }
 
           mkdir -p Payload
           cp -R stage/TrollInstaller.app Payload/
