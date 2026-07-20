@@ -19,9 +19,19 @@ jobs:
         run: |
           export THEOS_DONT_CODE_SIGN=1
           make messages=yes 2>&1 | tee /tmp/make.log
-          echo "MAKE_EXIT=${PIPESTATUS[0]}"
-          echo "=== .theos object tree ==="
-          find .theos/obj -maxdepth 3 -type f -name TrollInstaller | sort || true
+          MAKE_EXIT=${PIPESTATUS[0]}
+          echo "MAKE_EXIT=${MAKE_EXIT}"
+          if [ "$MAKE_EXIT" != "0" ]; then
+            echo "::error::make failed with exit code ${MAKE_EXIT}"
+            tail -40 /tmp/make.log
+            exit 1
+          fi
+          echo "=== .theos object tree (TrollInstaller) ==="
+          find .theos/obj -maxdepth 4 -type f -name TrollInstaller | sort || true
+          echo "=== .theos object tree (trollserver) ==="
+          find .theos/obj -maxdepth 4 -type f -name trollserver | sort || true
+          echo "=== .theos .app dirs ==="
+          find .theos -maxdepth 4 -type d -name '*.app' | sort || true
 
       - name: Assemble & package .tipa
         run: |

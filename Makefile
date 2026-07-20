@@ -20,3 +20,4 @@ trollserver_FRAMEWORKS = Foundation
 trollserver_INSTALL_PATH = /Applications/TrollInstaller.app
 
 include $(THEOS)/makefiles/application.mk
+include $(THEOS)/makefiles/tool.mk
