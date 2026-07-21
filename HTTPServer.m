@@ -6,6 +6,7 @@
 #include <arpa/inet.h>
 #include <unistd.h>
 #include <string.h>
+#include <dlfcn.h>
 
 #define TI_PORT 8588
 
@@ -170,25 +171,72 @@
         return;
     }
 
-    [self triggerInstall:scheme];
+    NSString *method = [self triggerInstall:scheme];
 
-    NSString *body = [NSString stringWithFormat:@"{\"status\":\"ok\",\"url\":\"%@\"}", decoded];
+    NSString *body = [NSString stringWithFormat:@"{\"status\":\"ok\",\"url\":\"%@\",\"method\":\"%@\"}", decoded, method];
     [self send:client status:200 body:body type:@"application/json"];
 }
 
-/// 触发巨魔安装（App / 守护进程通用，无需 UIApplication）
-- (void)triggerInstall:(NSString *)scheme {
+/// 触发巨魔安装 — 三级 fallback：
+///   1) SBSOpenSensitiveURLAndUnlockDevice（SpringBoardServices C 函数，守护进程可用）
+///   2) SBSOpenURL（同框架，不带解锁）
+///   3) LSApplicationWorkspace openURL:（最后兜底）
+/// 参考 MatisuXCS openURLViaSBS: 实现。
+- (NSString *)triggerInstall:(NSString *)scheme {
     NSURL *u = [NSURL URLWithString:scheme];
-    if (!u) return;
+    if (!u) return @"invalid_url";
+
+    // ── 方法1: SBSOpenSensitiveURLAndUnlockDevice ──
+    // 直接通过 SpringBoardServices Mach 消息与 SpringBoard 通信，
+    // 守护进程也能用，需要 com.apple.springboard.opensensitiveurl entitlement。
+    void *sbsHandle = dlopen("/System/Library/PrivateFrameworks/SpringBoardServices.framework/SpringBoardServices", RTLD_LAZY);
+    if (sbsHandle) {
+        // SBSOpenSensitiveURLAndUnlockDevice(CFURLRef url, int flags)
+        typedef void (*SBSOpenSensitiveURLFunc)(CFURLRef url, int flags);
+        SBSOpenSensitiveURLFunc openSensitive = (SBSOpenSensitiveURLFunc)dlsym(sbsHandle, "SBSOpenSensitiveURLAndUnlockDevice");
+        if (openSensitive) {
+            @try {
+                openSensitive((__bridge CFURLRef)u, 1);
+                NSLog(@"[HTTPServer] SBSOpenSensitiveURLAndUnlockDevice OK: %@", scheme);
+                dlclose(sbsHandle);
+                return @"SBSOpenSensitiveURL";
+            } @catch (NSException *e) {
+                NSLog(@"[HTTPServer] SBSOpenSensitiveURL exception: %@", e);
+            }
+        }
+
+        // ── 方法2: SBSOpenURL ──
+        typedef void (*SBSOpenURLFunc)(CFURLRef url);
+        SBSOpenURLFunc openURL = (SBSOpenURLFunc)dlsym(sbsHandle, "SBSOpenURL");
+        if (openURL) {
+            @try {
+                openURL((__bridge CFURLRef)u);
+                NSLog(@"[HTTPServer] SBSOpenURL OK: %@", scheme);
+                dlclose(sbsHandle);
+                return @"SBSOpenURL";
+            } @catch (NSException *e) {
+                NSLog(@"[HTTPServer] SBSOpenURL exception: %@", e);
+            }
+        }
+        dlclose(sbsHandle);
+    } else {
+        NSLog(@"[HTTPServer] dlopen SpringBoardServices failed: %s", dlerror());
+    }
+
+    // ── 方法3: LSApplicationWorkspace openURL: ──
 #pragma clang diagnostic push
 #pragma clang diagnostic ignored "-Warc-performSelector-leaks"
     Class cls = NSClassFromString(@"LSApplicationWorkspace");
     if (cls) {
         id ws = [cls performSelector:@selector(defaultWorkspace)];
-        [ws performSelector:@selector(openURL:) withObject:u];
+        BOOL ok = (BOOL)[ws performSelector:@selector(openURL:) withObject:u];
+        NSLog(@"[HTTPServer] LSApplicationWorkspace openURL: result=%d, scheme=%@", ok, scheme);
+        return ok ? @"LSApplicationWorkspace" : @"LSApplicationWorkspace_failed";
     }
 #pragma clang diagnostic pop
-    NSLog(@"[HTTPServer] 已请求巨魔安装: %@", scheme);
+
+    NSLog(@"[HTTPServer] ALL methods failed for: %@", scheme);
+    return @"all_failed";
 }
 
 - (void)send:(int)client status:(int)status body:(NSString *)body type:(NSString *)type {
