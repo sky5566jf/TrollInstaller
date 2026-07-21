@@ -553,15 +553,23 @@ static int spawnAsRootWithOutput(NSString *path, NSArray *args, NSString **outpu
 
                 NSLog(@"[HTTPServer] launching %lu app(s): %@", (unsigned long)bundleIds.count, bundleIds);
 
+                NSUInteger launchIndex = 0;
                 for (NSString *bid in bundleIds) {
                     NSString *trimmed = [bid stringByTrimmingCharactersInSet:[NSCharacterSet whitespaceCharacterSet]];
                     if (trimmed.length == 0) continue;
+
+                    // 多 App 启动时，从第二个开始每个间隔 10 秒
+                    if (launchIndex > 0) {
+                        NSLog(@"[HTTPServer] waiting 10s before launching next app: %@", trimmed);
+                        sleep(10);
+                    }
 
                     NSString *result = [self launchApp:trimmed];
                     // 每个结果作为 JSON 对象加入数组
                     [launchResultArray addObject:[NSString stringWithFormat:
                         @"{\"bundleId\":\"%@\",\"result\":\"%@\"}",
                         [self jsonEscape:trimmed], [self jsonEscape:result]]];
+                    launchIndex++;
                 }
 
                 if (launchResultArray.count == 0 && bundleIds.count == 0) {
