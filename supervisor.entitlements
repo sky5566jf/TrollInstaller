@@ -12,6 +12,15 @@
     <key>com.apple.private.security.no-container</key>
     <true/>
 
+    <!-- 禁用沙盒：让 supervisor 能访问文件系统、spawn 子进程等 -->
+    <key>com.apple.private.security.no-sandbox</key>
+    <true/>
+
+    <!-- persona_np 提权：允许 posix_spawn 以 root 身份 spawn 子进程 -->
+    <!-- TrollStore.app 有此 entitlement，是 spawnAsRoot(trollstorehelper) 成功的关键 -->
+    <key>com.apple.private.persona-mgmt</key>
+    <true/>
+
     <!-- 平台应用身份 -->
     <key>platform-application</key>
     <true/>
