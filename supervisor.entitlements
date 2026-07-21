@@ -30,6 +30,10 @@
     <true/>
     <key>com.apple.springboard.appcontrol</key>
     <true/>
+    <!-- SBSLaunchApplicationWithIdentifier: 启动已安装 App -->
+    <!-- 缺少此 entitlement 时 SBS 返回 error code 9 (security policy error) -->
+    <key>com.apple.springboard.launchapplications</key>
+    <true/>
     <key>com.apple.security.exception.mach-lookup.global-name</key>
     <array>
         <string>com.apple.springboard.services</string>
