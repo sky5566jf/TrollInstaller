@@ -415,19 +415,27 @@ static int spawnAsRootWithOutput(NSString *path, NSArray *args, NSString **outpu
         }
     }
 
-    // 方法2: 从 new app path 提取 .app 目录名
-    // 格式: [installApp] new app path: /path/UUID/Geranium.app
+    // 方法2: 从 new app path 提取完整路径，读取 Info.plist 获取真实 CFBundleIdentifier
+    // 格式: [installApp] new app path: /private/var/containers/Bundle/Application/UUID/Geranium.app
     NSRange pathRange = [output rangeOfString:@"[installApp] new app path: "];
     if (pathRange.location != NSNotFound) {
         NSString *afterPath = [output substringFromIndex:pathRange.location + 28];
-        // 取最后一个路径组件（.app 目录名）
         NSArray *pathParts = [afterPath componentsSeparatedByString:@"\n"];
         if (pathParts.count > 0) {
             NSString *appPath = [pathParts[0] stringByTrimmingCharactersInSet:[NSCharacterSet whitespaceCharacterSet]];
-            NSString *appName = [appPath lastPathComponent]; // "Geranium.app"
-            NSString *nameNoExt = [appName stringByDeletingPathExtension]; // "Geranium"
-            NSLog(@"[HTTPServer] extracted app name (not bundleId): %@ — may not match bundle ID", nameNoExt);
-            return nameNoExt;
+            // 从 .app 目录读取 Info.plist
+            NSString *infoPlistPath = [appPath stringByAppendingPathComponent:@"Info.plist"];
+            NSDictionary *infoPlist = [NSDictionary dictionaryWithContentsOfFile:infoPlistPath];
+            if (infoPlist) {
+                NSString *bundleId = infoPlist[@"CFBundleIdentifier"];
+                if (bundleId && bundleId.length > 0) {
+                    NSLog(@"[HTTPServer] extracted bundleId from Info.plist: %@", bundleId);
+                    return bundleId;
+                }
+                NSLog(@"[HTTPServer] Info.plist found but CFBundleIdentifier missing: %@", infoPlistPath);
+            } else {
+                NSLog(@"[HTTPServer] cannot read Info.plist at: %@", infoPlistPath);
+            }
         }
     }
 
