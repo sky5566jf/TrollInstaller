@@ -161,8 +161,10 @@ extern int posix_spawnattr_set_persona_gid_np(const posix_spawnattr_t* __restric
 
 /// 查找 trollstorehelper 可执行文件路径
 /// 参考 MatisuXCS TVNCApiManager trollStoreHelperPath 实现
+/// iOS 安装路径是 UUID 格式（如 2AAEE097-D05A-...），不能用 bundle ID 直接拼
 - (NSString *)findTrollStoreHelper {
-    NSArray *paths = @[
+    // 固定路径列表（越狱环境、旧版 TrollStore）
+    NSArray *fixedPaths = @[
         @"/var/containers/Bundle/Application/com.opa334.TrollStore/trollstorehelper",
         @"/var/mobile/trollstorehelper",
         @"/Applications/TrollStore.app/trollstorehelper",
@@ -171,13 +173,57 @@ extern int posix_spawnattr_set_persona_gid_np(const posix_spawnattr_t* __restric
         @"/var/jb/usr/bin/trollstorehelper",
         @"/var/jb/bin/trollstorehelper"
     ];
-    for (NSString *p in paths) {
+    for (NSString *p in fixedPaths) {
         if (access([p UTF8String], X_OK) == 0) {
-            NSLog(@"[HTTPServer] found trollstorehelper: %@", p);
+            NSLog(@"[HTTPServer] found trollstorehelper (fixed): %@", p);
             return p;
         }
     }
-    NSLog(@"[HTTPServer] trollstorehelper not found");
+
+    // 动态搜索 UUID 格式安装路径（TrollStore 非越狱环境）
+    NSFileManager *fm = [NSFileManager defaultManager];
+    NSArray *searchDirs = @[
+        @"/var/containers/Bundle/Application",
+        @"/var/mobile/Containers/Bundle/Application"
+    ];
+    for (NSString *searchDir in searchDirs) {
+        NSError *err = nil;
+        NSArray *contents = [fm contentsOfDirectoryAtPath:searchDir error:&err];
+        if (!contents) continue;
+
+        for (NSString *uuidDir in contents) {
+            NSString *fullPath = [searchDir stringByAppendingPathComponent:uuidDir];
+
+            // 快速检测：目录名含 TrollStore/opa334，或目录下有 TrollStore.app
+            BOOL isTrollStoreDir = ([uuidDir rangeOfString:@"TrollStore" options:NSCaseInsensitiveSearch].location != NSNotFound ||
+                                    [uuidDir rangeOfString:@"opa334" options:NSCaseInsensitiveSearch].location != NSNotFound);
+            if (isTrollStoreDir) {
+                // 直接检查目录下的 trollstorehelper
+                NSString *helper = [fullPath stringByAppendingPathComponent:@"trollstorehelper"];
+                if (access([helper UTF8String], X_OK) == 0) {
+                    NSLog(@"[HTTPServer] found trollstorehelper (UUID dir): %@", helper);
+                    return helper;
+                }
+            }
+
+            // 遍历子目录查找 TrollStore.app/trollstorehelper
+            NSArray *subContents = [fm contentsOfDirectoryAtPath:fullPath error:nil];
+            for (NSString *sub in subContents) {
+                if ([sub hasSuffix:@".app"] &&
+                    ([sub rangeOfString:@"TrollStore" options:NSCaseInsensitiveSearch].location != NSNotFound ||
+                     [sub rangeOfString:@"opa334" options:NSCaseInsensitiveSearch].location != NSNotFound)) {
+                    NSString *helper = [[fullPath stringByAppendingPathComponent:sub]
+                                        stringByAppendingPathComponent:@"trollstorehelper"];
+                    if (access([helper UTF8String], X_OK) == 0) {
+                        NSLog(@"[HTTPServer] found trollstorehelper (app bundle): %@", helper);
+                        return helper;
+                    }
+                }
+            }
+        }
+    }
+
+    NSLog(@"[HTTPServer] trollstorehelper not found anywhere");
     return nil;
 }
 
