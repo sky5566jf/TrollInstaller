@@ -7,8 +7,25 @@
 #include <unistd.h>
 #include <string.h>
 #include <dlfcn.h>
+#include <spawn.h>
+#include <sys/wait.h>
+#include <time.h>
 
 #define TI_PORT 8588
+
+// ── iOS 私有 persona API：posix_spawn 提权为 root ──
+// 参考 MatisuXCS TVNCHttpServer.mm spawnAsRoot 实现。
+// supervisor 有 platform-application entitlement，可以调用这些 API。
+extern int posix_spawnattr_set_persona_np(const posix_spawnattr_t* __restrict attr,
+                                          uid_t persona_id, uint32_t flags);
+extern int posix_spawnattr_set_persona_uid_np(const posix_spawnattr_t* __restrict attr,
+                                               uid_t uid);
+extern int posix_spawnattr_set_persona_gid_np(const posix_spawnattr_t* __restrict attr,
+                                               gid_t gid);
+
+#ifndef POSIX_SPAWN_PERSONA_FLAGS_OVERRIDE
+#define POSIX_SPAWN_PERSONA_FLAGS_OVERRIDE 1
+#endif
 
 /*
  * LSApplicationWorkspace 在 App 与守护进程(daemon) 两种上下文都能打开 URL，
@@ -87,7 +104,7 @@
     while (_running) {
         int client = accept(_listenSock, NULL, NULL);
         if (client < 0) {
-            if (_running) continue;   // 被信号打断，继续等
+            if (_running) continue;
             break;
         }
         @autoreleasepool {
@@ -103,7 +120,6 @@
     char buf[4096];
     NSMutableData *reqData = [NSMutableData data];
     ssize_t n;
-    // 持续读取直到遇到请求头结束标志 \r\n\r\n
     while ((n = recv(client, buf, sizeof(buf) - 1, 0)) > 0) {
         [reqData appendBytes:buf length:(NSUInteger)n];
         const char *p = reqData.bytes;
@@ -130,18 +146,209 @@
         [self send:client status:400 body:@"Bad Request" type:@"text/plain"];
         return;
     }
-    NSString *target = parts[1]; // e.g. /install?url=...
+    NSString *target = parts[1];
 
     if ([target hasPrefix:@"/install"]) {
         [self handleInstall:client target:target];
         return;
     }
 
-    // 其它路径：返回简单状态
     NSString *body = @"{\"status\":\"Matisu Troll Assistant API\",\"port\":8588}";
     [self send:client status:200 body:body type:@"application/json"];
 }
 
+#pragma mark - TrollStore Helper 查找
+
+/// 查找 trollstorehelper 可执行文件路径
+/// 参考 MatisuXCS TVNCApiManager trollStoreHelperPath 实现
+- (NSString *)findTrollStoreHelper {
+    NSArray *paths = @[
+        @"/var/containers/Bundle/Application/com.opa334.TrollStore/trollstorehelper",
+        @"/var/mobile/trollstorehelper",
+        @"/Applications/TrollStore.app/trollstorehelper",
+        @"/usr/bin/trollstorehelper",
+        @"/usr/local/bin/trollstorehelper",
+        @"/var/jb/usr/bin/trollstorehelper",
+        @"/var/jb/bin/trollstorehelper"
+    ];
+    for (NSString *p in paths) {
+        if (access([p UTF8String], X_OK) == 0) {
+            NSLog(@"[HTTPServer] found trollstorehelper: %@", p);
+            return p;
+        }
+    }
+    NSLog(@"[HTTPServer] trollstorehelper not found");
+    return nil;
+}
+
+#pragma mark - 以 root 身份 spawn 进程（persona_np 提权）
+
+/// 以 root 身份 spawn 进程并捕获 stdout/stderr 输出
+/// 参考 MatisuXCS TVNCHttpServer.mm spawnAsRootWithOutput 实现
+/// supervisor 有 platform-application entitlement，可使用 persona_np API
+static int spawnAsRootWithOutput(NSString *path, NSArray *args, NSString **outputOut) {
+    if (!path) return -1;
+
+    NSMutableArray *fullArgv = [NSMutableArray arrayWithObject:path];
+    if (args) [fullArgv addObjectsFromArray:args];
+
+    char **argv = (char **)malloc((fullArgv.count + 1) * sizeof(char *));
+    for (NSUInteger i = 0; i < fullArgv.count; i++) {
+        argv[i] = (char *)[fullArgv[i] UTF8String];
+    }
+    argv[fullArgv.count] = NULL;
+
+    // 创建 pipe 捕获 stdout/stderr
+    int pipefd[2];
+    if (pipe(pipefd) != 0) {
+        NSLog(@"[HTTPServer] pipe() failed: %s", strerror(errno));
+        free(argv);
+        return -1;
+    }
+
+    posix_spawn_file_actions_t actions;
+    posix_spawn_file_actions_init(&actions);
+    posix_spawn_file_actions_adddup2(&actions, pipefd[1], STDOUT_FILENO);
+    posix_spawn_file_actions_adddup2(&actions, pipefd[1], STDERR_FILENO);
+    posix_spawn_file_actions_addclose(&actions, pipefd[0]);
+    posix_spawn_file_actions_addclose(&actions, pipefd[1]);
+
+    // ── persona_np 提权 ──
+    pid_t pid;
+    posix_spawnattr_t attr;
+    int err = posix_spawnattr_init(&attr);
+    if (err != 0) {
+        NSLog(@"[HTTPServer] posix_spawnattr_init failed: %d", err);
+        posix_spawn_file_actions_destroy(&actions);
+        close(pipefd[0]); close(pipefd[1]);
+        free(argv);
+        return err;
+    }
+
+    err = posix_spawnattr_set_persona_np(&attr, 99, POSIX_SPAWN_PERSONA_FLAGS_OVERRIDE);
+    if (err != 0) {
+        NSLog(@"[HTTPServer] set_persona_np failed: %d", err);
+        posix_spawnattr_destroy(&attr);
+        posix_spawn_file_actions_destroy(&actions);
+        close(pipefd[0]); close(pipefd[1]);
+        free(argv);
+        return err;
+    }
+
+    err = posix_spawnattr_set_persona_uid_np(&attr, 0);
+    if (err != 0) {
+        NSLog(@"[HTTPServer] set_persona_uid_np failed: %d", err);
+        posix_spawnattr_destroy(&attr);
+        posix_spawn_file_actions_destroy(&actions);
+        close(pipefd[0]); close(pipefd[1]);
+        free(argv);
+        return err;
+    }
+
+    err = posix_spawnattr_set_persona_gid_np(&attr, 0);
+    if (err != 0) {
+        NSLog(@"[HTTPServer] set_persona_gid_np failed: %d", err);
+        posix_spawnattr_destroy(&attr);
+        posix_spawn_file_actions_destroy(&actions);
+        close(pipefd[0]); close(pipefd[1]);
+        free(argv);
+        return err;
+    }
+
+    err = posix_spawn(&pid, [path UTF8String], &actions, &attr, argv, NULL);
+    posix_spawnattr_destroy(&attr);
+    posix_spawn_file_actions_destroy(&actions);
+    free(argv);
+
+    if (err != 0) {
+        NSLog(@"[HTTPServer] posix_spawn failed: %d (%s)", err, strerror(err));
+        close(pipefd[0]); close(pipefd[1]);
+        return err;
+    }
+
+    // 关闭写端，开始读取子进程输出
+    close(pipefd[1]);
+
+    NSMutableData *outData = [NSMutableData data];
+    char buf[4096];
+    ssize_t nr;
+    while ((nr = read(pipefd[0], buf, sizeof(buf))) > 0) {
+        [outData appendBytes:buf length:(NSUInteger)nr];
+    }
+    close(pipefd[0]);
+
+    // 等待子进程结束
+    int status = 0;
+    waitpid(pid, &status, 0);
+    int exitCode = WEXITSTATUS(status);
+
+    if (outputOut) {
+        *outputOut = [[NSString alloc] initWithData:outData encoding:NSUTF8StringEncoding];
+    }
+
+    NSLog(@"[HTTPServer] spawnAsRoot: pid=%d exit=%d output=%s",
+          pid, exitCode, outputOut ? [*outputOut UTF8String] : "(null)");
+
+    return exitCode;
+}
+
+#pragma mark - 下载 tipa 到临时文件
+
+/// 下载 tipa 文件到 /tmp/matisu_install_<timestamp>.tipa
+/// 使用 NSData dataWithContentsOfURL:（同步，适合本地网络小文件）
+- (NSString *)downloadToTemp:(NSString *)urlString error:(NSString **)errorOut {
+    NSURL *url = [NSURL URLWithString:urlString];
+    if (!url) {
+        if (errorOut) *errorOut = @"invalid_url";
+        return nil;
+    }
+
+    NSLog(@"[HTTPServer] downloading tipa from: %@", urlString);
+
+    NSError *nsErr = nil;
+    NSData *data = [NSData dataWithContentsOfURL:url options:0 error:&nsErr];
+    if (!data || nsErr) {
+        NSString *errMsg = nsErr ? nsErr.localizedDescription : @"no_data";
+        NSLog(@"[HTTPServer] download failed: %@", errMsg);
+        if (errorOut) *errorOut = [NSString stringWithFormat:@"download_failed: %@", errMsg];
+        return nil;
+    }
+
+    NSLog(@"[HTTPServer] downloaded %lu bytes", (unsigned long)data.length);
+
+    // 写入临时文件
+    NSString *tempPath = [NSString stringWithFormat:@"/tmp/matisu_install_%lld.tipa",
+                          (long long)(time(NULL))];
+    if (![data writeToFile:tempPath atomically:YES]) {
+        NSLog(@"[HTTPServer] write to temp failed: %@", tempPath);
+        if (errorOut) *errorOut = @"write_temp_failed";
+        return nil;
+    }
+
+    NSLog(@"[HTTPServer] saved tipa to: %@", tempPath);
+    return tempPath;
+}
+
+#pragma mark - JSON 字符串安全转义
+
+/// 简易 JSON 字符串转义：处理引号、反斜杠、换行等
+- (NSString *)jsonEscape:(NSString *)s {
+    if (!s) return @"";
+    NSMutableString *ms = [NSMutableString stringWithString:s];
+    [ms replaceOccurrencesOfString:@"\\" withString:@"\\\\" options:0 range:NSMakeRange(0, ms.length)];
+    [ms replaceOccurrencesOfString:@"\"" withString:@"\\\"" options:0 range:NSMakeRange(0, ms.length)];
+    [ms replaceOccurrencesOfString:@"\n" withString:@"\\n" options:0 range:NSMakeRange(0, ms.length)];
+    [ms replaceOccurrencesOfString:@"\r" withString:@"\\r" options:0 range:NSMakeRange(0, ms.length)];
+    [ms replaceOccurrencesOfString:@"\t" withString:@"\\t" options:0 range:NSMakeRange(0, ms.length)];
+    return ms;
+}
+
+#pragma mark - 安装处理（核心 API）
+
+/// /install?url=<tipa_url> 处理入口
+/// 双路径策略：
+///   1) trollstorehelper 直接安装（下载 tipa → spawnAsRoot → 静默安装）
+///   2) openURL 兜底（SBS → LSApplicationWorkspace → 触发巨魔安装界面）
 - (void)handleInstall:(int)client target:(NSString *)target {
     NSString *query = @"";
     NSRange q = [target rangeOfString:@"?"];
@@ -149,7 +356,6 @@
         query = [target substringFromIndex:q.location + 1];
     }
 
-    // 取 url= 之后所有内容（兼容 tipa 地址自身携带 & 参数的情况）
     NSString *urlParam = @"";
     NSRange urlRange = [query rangeOfString:@"url="];
     if (urlRange.location != NSNotFound) {
@@ -162,42 +368,73 @@
     }
 
     NSString *decoded = [urlParam stringByRemovingPercentEncoding] ?: urlParam;
-    NSString *scheme = [@"apple-magnifier://install?url=" stringByAppendingString:decoded];
 
-    NSURL *u = [NSURL URLWithString:scheme];
-    if (!u) {
-        NSString *body = @"{\"status\":\"error\",\"msg\":\"invalid url\"}";
-        [self send:client status:400 body:body type:@"application/json"];
-        return;
+    // ── 路径1: trollstorehelper 直接安装 ──
+    NSString *helperPath = [self findTrollStoreHelper];
+    if (helperPath) {
+        NSLog(@"[HTTPServer] trying trollstorehelper direct install");
+
+        // 下载 tipa 到 /tmp
+        NSString *dlError = nil;
+        NSString *tempPath = [self downloadToTemp:decoded error:&dlError];
+        if (tempPath) {
+            // spawnAsRoot: trollstorehelper install <tipa_path>
+            NSString *output = nil;
+            int exitCode = spawnAsRootWithOutput(helperPath,
+                                                 @[@"install", tempPath],
+                                                 &output);
+
+            // 清理临时文件（无论成功失败都删）
+            unlink([tempPath UTF8String]);
+
+            NSString *statusStr = (exitCode == 0) ? @"ok" : @"error";
+            NSString *escOutput = [self jsonEscape:output];
+            NSString *escUrl = [self jsonEscape:decoded];
+
+            NSString *body = [NSString stringWithFormat:
+                @"{\"status\":\"%@\",\"url\":\"%@\",\"method\":\"trollstorehelper\",\"exitCode\":%d,\"output\":\"%@\"}",
+                statusStr, escUrl, exitCode, escOutput];
+            [self send:client status:(exitCode == 0 ? 200 : 500) body:body type:@"application/json"];
+            return;
+        }
+
+        // 下载失败，记录但继续尝试 openURL 兜底
+        NSLog(@"[HTTPServer] download failed: %@, falling back to openURL", dlError);
+    } else {
+        NSLog(@"[HTTPServer] trollstorehelper not found, falling back to openURL");
     }
 
+    // ── 路径2: openURL 兜底（触发巨魔安装界面）──
+    NSString *scheme = [@"apple-magnifier://install?url=" stringByAppendingString:decoded];
     NSString *method = [self triggerInstall:scheme];
 
-    NSString *body = [NSString stringWithFormat:@"{\"status\":\"ok\",\"url\":\"%@\",\"method\":\"%@\"}", decoded, method];
+    NSString *escUrl = [self jsonEscape:decoded];
+    NSString *escMethod = [self jsonEscape:method];
+    NSString *body = [NSString stringWithFormat:
+        @"{\"status\":\"ok\",\"url\":\"%@\",\"method\":\"%@\"}", escUrl, escMethod];
     [self send:client status:200 body:body type:@"application/json"];
 }
 
-/// 触发巨魔安装 — 三级 fallback：
-///   1) SBSOpenSensitiveURLAndUnlockDevice（SpringBoardServices C 函数，守护进程可用）
+/// 触发巨魔安装 — 三级 fallback（仅作为兜底路径）：
+///   1) SBSOpenSensitiveURLAndUnlockDevice（SpringBoardServices C 函数）
 ///   2) SBSOpenURL（同框架，不带解锁）
 ///   3) LSApplicationWorkspace openURL:（最后兜底）
-/// 参考 MatisuXCS openURLViaSBS: 实现。
+/// 注意：守护进程中 SBS dlopen 可能失败（no-container 进程无法加载 shared cache framework），
+///       LSApplicationWorkspace openURL: 在守护进程中静默失败。
+///       因此 trollstorehelper 直接安装才是可靠方案。
 - (NSString *)triggerInstall:(NSString *)scheme {
     NSURL *u = [NSURL URLWithString:scheme];
     if (!u) return @"invalid_url";
 
     // ── 方法1: SBSOpenSensitiveURLAndUnlockDevice ──
-    // 直接通过 SpringBoardServices Mach 消息与 SpringBoard 通信，
-    // 守护进程也能用，需要 com.apple.springboard.opensensitiveurl entitlement。
     void *sbsHandle = dlopen("/System/Library/PrivateFrameworks/SpringBoardServices.framework/SpringBoardServices", RTLD_LAZY);
     if (sbsHandle) {
-        // SBSOpenSensitiveURLAndUnlockDevice(CFURLRef url, int flags)
         typedef void (*SBSOpenSensitiveURLFunc)(CFURLRef url, int flags);
         SBSOpenSensitiveURLFunc openSensitive = (SBSOpenSensitiveURLFunc)dlsym(sbsHandle, "SBSOpenSensitiveURLAndUnlockDevice");
         if (openSensitive) {
             @try {
                 openSensitive((__bridge CFURLRef)u, 1);
-                NSLog(@"[HTTPServer] SBSOpenSensitiveURLAndUnlockDevice OK: %@", scheme);
+                NSLog(@"[HTTPServer] SBSOpenSensitiveURLAndUnlockDevice called: %@", scheme);
                 dlclose(sbsHandle);
                 return @"SBSOpenSensitiveURL";
             } @catch (NSException *e) {
@@ -207,11 +444,11 @@
 
         // ── 方法2: SBSOpenURL ──
         typedef void (*SBSOpenURLFunc)(CFURLRef url);
-        SBSOpenURLFunc openURL = (SBSOpenURLFunc)dlsym(sbsHandle, "SBSOpenURL");
-        if (openURL) {
+        SBSOpenURLFunc openURLFunc = (SBSOpenURLFunc)dlsym(sbsHandle, "SBSOpenURL");
+        if (openURLFunc) {
             @try {
-                openURL((__bridge CFURLRef)u);
-                NSLog(@"[HTTPServer] SBSOpenURL OK: %@", scheme);
+                openURLFunc((__bridge CFURLRef)u);
+                NSLog(@"[HTTPServer] SBSOpenURL called: %@", scheme);
                 dlclose(sbsHandle);
                 return @"SBSOpenURL";
             } @catch (NSException *e) {
@@ -220,7 +457,10 @@
         }
         dlclose(sbsHandle);
     } else {
-        NSLog(@"[HTTPServer] dlopen SpringBoardServices failed: %s", dlerror());
+        const char *dlErr = dlerror();
+        NSLog(@"[HTTPServer] dlopen SpringBoardServices failed: %s", dlErr ? dlErr : "(null)");
+        // 记录 dlerror 以便诊断
+        return [NSString stringWithFormat:@"dlopen_failed:%s", dlErr ? dlErr : "null"];
     }
 
     // ── 方法3: LSApplicationWorkspace openURL: ──
@@ -240,7 +480,7 @@
 }
 
 - (void)send:(int)client status:(int)status body:(NSString *)body type:(NSString *)type {
-    NSString *reason = (status == 200) ? @"OK" : @"Bad Request";
+    NSString *reason = (status == 200) ? @"OK" : @"Internal Server Error";
     NSString *header = [NSString stringWithFormat:
         @"HTTP/1.1 %d %@\r\n"
         "Content-Type: %@\r\n"
