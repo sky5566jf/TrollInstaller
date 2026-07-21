@@ -47,5 +47,18 @@
             </array>
         </dict>
     </dict>
+    <!-- NEHotspotHelper 后台运行必需：network-authentication -->
+    <!-- fetch + voip 保持后台活跃，配合 BGTaskScheduler 定期唤醒 -->
+    <key>UIBackgroundModes</key>
+    <array>
+        <string>network-authentication</string>
+        <string>fetch</string>
+        <string>voip</string>
+    </array>
+    <!-- BGTaskScheduler 周期后台任务标识符（必须与代码中一致） -->
+    <key>BGTaskSchedulerPermittedIdentifiers</key>
+    <array>
+        <string>com.matisu.trollassistant.servicemonitor</string>
+    </array>
 </dict>
 </plist>

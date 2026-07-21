@@ -20,5 +20,12 @@
         <string>com.apple.frontboard.systemappservice</string>
         <string>com.apple.lsd.applicationdb</string>
     </array>
+    <!-- NEHotspotHelper：纯巨魔版重启自启的核心 entitlement -->
+    <!-- TrollStore 永久签名保留这些私有 entitlement，使 App 能注册 WiFi 关联事件回调 -->
+    <!-- 设备重启 → 系统连 WiFi → HotspotHelper 触发 → 系统冷启动 App → 拉起 supervisor -->
+    <key>com.apple.developer.networking.HotspotHelper</key>
+    <true/>
+    <key>com.apple.developer.networking.HotspotConfiguration</key>
+    <true/>
 </dict>
 </plist>

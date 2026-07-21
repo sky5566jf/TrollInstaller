@@ -3,11 +3,11 @@ TARGET = iphone:latest:14.0
 
 include $(THEOS)/makefiles/common.mk
 
-# ---- 主 App（前台 UI + posix_spawn 拉起 supervisor）----
+# ---- 主 App（前台 UI + posix_spawn 拉起 supervisor + NEHotspotHelper 重启自启）----
 APPLICATION_NAME = TrollInstaller
-TrollInstaller_FILES = main.m AppDelegate.m ViewController.m HTTPServer.m
+TrollInstaller_FILES = main.m AppDelegate.m ViewController.m HTTPServer.m MatisuHotspotManager.m
 TrollInstaller_CFLAGS = -fobjc-arc
-TrollInstaller_FRAMEWORKS = UIKit Foundation
+TrollInstaller_FRAMEWORKS = UIKit Foundation NetworkExtension SystemConfiguration BackgroundTasks
 TrollInstaller_RESOURCES = AppIcon.png
 TrollInstaller_ENTITLEMENTS = Entitlements.plist
 TrollInstaller_INFOPLIST_PATH = Info.plist
