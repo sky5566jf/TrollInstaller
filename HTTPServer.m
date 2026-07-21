@@ -389,12 +389,87 @@ static int spawnAsRootWithOutput(NSString *path, NSArray *args, NSString **outpu
     return ms;
 }
 
+#pragma mark - 从 trollstorehelper 输出解析 bundle ID
+
+/// 从 trollstorehelper 的输出日志中提取 bundle ID
+/// 输出格式：[installApp] new app path: /path/to/UUID/BundleName.app
+/// bundle ID 不等于 .app 文件夹名，需要从 Info.plist 读取或用 MCMAppContainer 信息
+/// 但 trollstorehelper 输出中有 MCMAppContainer ID: <bundle_id> UUID: ...
+/// 例如：ID: live.cclerc.geranium UUID: B4C3B19C-...
+- (NSString *)extractBundleIdFromOutput:(NSString *)output {
+    if (!output || output.length == 0) return nil;
+
+    // 方法1: 从 MCMAppContainer ID 行提取
+    // 格式: ID: live.cclerc.geranium UUID: ...
+    NSRange idRange = [output rangeOfString:@"ID: "];
+    if (idRange.location != NSNotFound) {
+        NSString *afterId = [output substringFromIndex:idRange.location + 4];
+        NSRange spaceRange = [afterId rangeOfString:@" "];
+        if (spaceRange.location != NSNotFound && spaceRange.location > 0) {
+            NSString *bundleId = [afterId substringToIndex:spaceRange.location];
+            // 简单验证：bundle ID 应包含点号
+            if ([bundleId containsString:@"."]) {
+                NSLog(@"[HTTPServer] extracted bundleId from MCMAppContainer: %@", bundleId);
+                return bundleId;
+            }
+        }
+    }
+
+    // 方法2: 从 new app path 提取 .app 目录名
+    // 格式: [installApp] new app path: /path/UUID/Geranium.app
+    NSRange pathRange = [output rangeOfString:@"[installApp] new app path: "];
+    if (pathRange.location != NSNotFound) {
+        NSString *afterPath = [output substringFromIndex:pathRange.location + 28];
+        // 取最后一个路径组件（.app 目录名）
+        NSArray *pathParts = [afterPath componentsSeparatedByString:@"\n"];
+        if (pathParts.count > 0) {
+            NSString *appPath = [pathParts[0] stringByTrimmingCharactersInSet:[NSCharacterSet whitespaceCharacterSet]];
+            NSString *appName = [appPath lastPathComponent]; // "Geranium.app"
+            NSString *nameNoExt = [appName stringByDeletingPathExtension]; // "Geranium"
+            NSLog(@"[HTTPServer] extracted app name (not bundleId): %@ — may not match bundle ID", nameNoExt);
+            return nameNoExt;
+        }
+    }
+
+    NSLog(@"[HTTPServer] cannot extract bundleId from trollstorehelper output");
+    return nil;
+}
+
+#pragma mark - 启动已安装的 App
+
+/// 以 root 身份 spawn supervisor 二进制的 --launch 模式来启动 App
+/// supervisor 的 --launch 模式会 dlopen FrontBoard/SBS → FBSOpenApplication/SBSOpenURL → 启动 App → 退出
+- (NSString *)launchApp:(NSString *)bundleId {
+    // 获取自身二进制的绝对路径（supervisor 的 vnode 监控要求绝对路径运行）
+    NSString *execPath = [[NSProcessInfo processInfo] arguments][0];
+    if (!execPath || execPath.length == 0) {
+        NSLog(@"[HTTPServer] cannot determine own executable path");
+        return @"no_exec_path";
+    }
+
+    NSLog(@"[HTTPServer] launching app %@ via spawnAsRoot(%@ --launch %@)", bundleId, execPath, bundleId);
+
+    // spawnAsRoot: matisusupervisor --launch <bundle_id>
+    // 以 root 身份运行，root 能 dlopen FrontBoard/SBS → 启动 App
+    NSString *output = nil;
+    int exitCode = spawnAsRootWithOutput(execPath,
+                                         @[@"--launch", bundleId],
+                                         &output);
+
+    NSString *result = [NSString stringWithFormat:@"exitCode:%d|%s", exitCode,
+                        output ? [output UTF8String] : "(no output)"];
+    NSLog(@"[HTTPServer] launch result: %@", result);
+    return result;
+}
+
 #pragma mark - 安装处理（核心 API）
 
-/// /install?url=<tipa_url> 处理入口
+/// /install?url=<tipa_url>&launch=<bundle_id> 处理入口
 /// 双路径策略：
 ///   1) trollstorehelper 直接安装（下载 tipa → spawnAsRoot → 静默安装）
 ///   2) openURL 兜底（SBS → LSApplicationWorkspace → 触发巨魔安装界面）
+/// launch 参数：安装成功后自动启动 App（可选）
+///   格式：/install?url=<tipa>&launch=<bundle_id> 或 /install?url=<tipa>&launch=true（自动从 tipa 解析 bundle ID）
 - (void)handleInstall:(int)client target:(NSString *)target {
     NSString *query = @"";
     NSRange q = [target rangeOfString:@"?"];
@@ -402,10 +477,16 @@ static int spawnAsRootWithOutput(NSString *path, NSArray *args, NSString **outpu
         query = [target substringFromIndex:q.location + 1];
     }
 
+    // ── 解析 url 参数 ──
     NSString *urlParam = @"";
     NSRange urlRange = [query rangeOfString:@"url="];
     if (urlRange.location != NSNotFound) {
         urlParam = [query substringFromIndex:urlRange.location + urlRange.length];
+        // 去掉后面的 &launch=... 部分（如果有）
+        NSRange ampRange = [urlParam rangeOfString:@"&"];
+        if (ampRange.location != NSNotFound) {
+            urlParam = [urlParam substringToIndex:ampRange.location];
+        }
     }
     if (urlParam.length == 0) {
         NSString *body = @"{\"status\":\"error\",\"msg\":\"url required\"}";
@@ -414,6 +495,18 @@ static int spawnAsRootWithOutput(NSString *path, NSArray *args, NSString **outpu
     }
 
     NSString *decoded = [urlParam stringByRemovingPercentEncoding] ?: urlParam;
+
+    // ── 解析 launch 参数 ──
+    NSString *launchParam = nil;
+    NSRange launchRange = [query rangeOfString:@"launch="];
+    if (launchRange.location != NSNotFound) {
+        launchParam = [query substringFromIndex:launchRange.location + launchRange.length];
+        NSRange ampRange = [launchParam rangeOfString:@"&"];
+        if (ampRange.location != NSNotFound) {
+            launchParam = [launchParam substringToIndex:ampRange.location];
+        }
+        launchParam = [launchParam stringByRemovingPercentEncoding] ?: launchParam;
+    }
 
     // ── 路径1: trollstorehelper 直接安装 ──
     NSString *helperPath = [self findTrollStoreHelper];
@@ -437,9 +530,28 @@ static int spawnAsRootWithOutput(NSString *path, NSArray *args, NSString **outpu
             NSString *escOutput = [self jsonEscape:output];
             NSString *escUrl = [self jsonEscape:decoded];
 
+            // ── 安装成功后自动启动 App ──
+            NSString *launchResult = @"";
+            if (exitCode == 0 && launchParam) {
+                NSString *bundleId = launchParam;
+
+                // launch=true 时，从 trollstorehelper 输出解析 bundle ID
+                if ([launchParam isEqualToString:@"true"]) {
+                    bundleId = [self extractBundleIdFromOutput:output];
+                    NSLog(@"[HTTPServer] auto-detected bundleId: %@", bundleId);
+                }
+
+                if (bundleId.length > 0) {
+                    launchResult = [self launchApp:bundleId];
+                } else {
+                    launchResult = @"no_bundle_id";
+                    NSLog(@"[HTTPServer] cannot determine bundle ID for launch");
+                }
+            }
+
             NSString *body = [NSString stringWithFormat:
-                @"{\"status\":\"%@\",\"url\":\"%@\",\"method\":\"trollstorehelper\",\"exitCode\":%d,\"output\":\"%@\"}",
-                statusStr, escUrl, exitCode, escOutput];
+                @"{\"status\":\"%@\",\"url\":\"%@\",\"method\":\"trollstorehelper\",\"exitCode\":%d,\"output\":\"%@\",\"launch\":\"%@\"}",
+                statusStr, escUrl, exitCode, escOutput, [self jsonEscape:launchResult]];
             [self send:client status:(exitCode == 0 ? 200 : 500) body:body type:@"application/json"];
             return;
         }

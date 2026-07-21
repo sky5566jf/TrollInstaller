@@ -19,6 +19,8 @@
 #import <unistd.h>
 #import <sys/stat.h>
 #import <spawn.h>
+#import <objc/runtime.h>
+#import <dlfcn.h>
 
 // 单例锁文件路径：/var/mobile/Library/Caches 在 mobile 用户下可写
 #define SUP_LOCK_PATH "/var/mobile/Library/Caches/com.matisu.trollassistant.supervisor.pid"
@@ -58,6 +60,125 @@ static void monitorSelfDeletion(const char *executable) {
 }
 
 int main(int argc, const char *argv[]) {
+    // ── --launch <bundle_id> 模式 ──
+    // 由 spawnAsRoot 以 root 身份调用，dlopen FrontBoard → FBSOpenApplication → 启动 App → 退出
+    // 用法：matisusupervisor --launch <bundle_id>
+    if (argc >= 3 && strcmp(argv[1], "--launch") == 0) {
+        const char *bundleId = argv[2];
+        fprintf(stderr, "[supervisor] --launch mode: bundleId=%s\n", bundleId);
+
+        // 尝试方法1: FBSOpenApplication (FrontBoard) — 按 bundle ID 启动，无需 URL scheme
+        void *fbHandle = dlopen("/System/Library/PrivateFrameworks/FrontBoard.framework/FrontBoard", RTLD_LAZY);
+        if (fbHandle) {
+            // FBSOpenApplication 是 ObjC 类方法，用 objc_msgSend 调用
+            // FBSOpenApplication *openApp = [[FBSOpenApplication alloc] initWithBundleID:bundleId];
+            // id result = [openApp openApplicationWithError:&error];
+            Class FBSOpenApplicationClass = objc_getClass("FBSOpenApplication");
+            if (FBSOpenApplicationClass) {
+                // 创建 FBSOpenApplication 实例
+                id openApp = [[FBSOpenApplicationClass alloc] initWithApplicationIdentifier:[NSString stringWithUTF8String:bundleId]];
+                if (openApp) {
+                    NSError *error = nil;
+                    // openApplicationWithResult:andError:
+                    SEL openSel = NSSelectorFromString(@"openApplicationWithResult:andError:");
+                    if ([openApp respondsToSelector:openSel]) {
+                        BOOL success = (BOOL)[openApp performSelector:openSel withObject:nil withObject:(__bridge id)&error];
+                        fprintf(stderr, "[supervisor] FBSOpenApplication result=%d, error=%s\n",
+                                success, error ? [[error localizedDescription] UTF8String] : "none");
+                        dlclose(fbHandle);
+                        return success ? EXIT_SUCCESS : EXIT_FAILURE;
+                    }
+
+                    // fallback: openApplicationWithError:
+                    SEL openSel2 = NSSelectorFromString(@"openApplicationWithError:");
+                    if ([openApp respondsToSelector:openSel2]) {
+#pragma clang diagnostic push
+#pragma clang diagnostic ignored "-Warc-performSelector-leaks"
+                        BOOL success = (BOOL)[openApp performSelector:openSel2 withObject:(__bridge id)(NSError * *)&error];
+#pragma clang diagnostic pop
+                        fprintf(stderr, "[supervisor] FBSOpenApplication(openApplicationWithError:) result=%d, error=%s\n",
+                                success, error ? [[error localizedDescription] UTF8String] : "none");
+                        dlclose(fbHandle);
+                        return success ? EXIT_SUCCESS : EXIT_FAILURE;
+                    }
+                    fprintf(stderr, "[supervisor] FBSOpenApplication has no known open method\n");
+                }
+            }
+
+            // 尝试 FBSOpenApplication 的 C 函数版本
+            typedef int (*FBSOpenApplicationFunc)(const char *bundleId, void *result, void *error);
+            FBSOpenApplicationFunc fbOpen = (FBSOpenApplicationFunc)dlsym(fbHandle, "FBSOpenApplication");
+            if (fbOpen) {
+                int ret = fbOpen(bundleId, NULL, NULL);
+                fprintf(stderr, "[supervisor] FBSOpenApplication(C) result=%d\n", ret);
+                dlclose(fbHandle);
+                return (ret == 0) ? EXIT_SUCCESS : EXIT_FAILURE;
+            }
+            dlclose(fbHandle);
+        } else {
+            const char *dlErr = dlerror();
+            fprintf(stderr, "[supervisor] dlopen FrontBoard failed: %s\n", dlErr ? dlErr : "(null)");
+        }
+
+        // 尝试方法2: SBSOpenSensitiveURLAndUnlockDevice — 通过 URL scheme 启动
+        // 不是所有 App 都有 URL scheme，但有些有（如 geranium://）
+        void *sbsHandle = dlopen("/System/Library/PrivateFrameworks/SpringBoardServices.framework/SpringBoardServices", RTLD_LAZY);
+        if (sbsHandle) {
+            // 尝试通过 bundle ID 查找 URL scheme
+            // LSApplicationWorkspace 可以查询 App 的 URL scheme
+            Class LSAppCls = objc_getClass("LSApplicationWorkspace");
+            if (LSAppCls) {
+                id ws = [LSAppCls performSelector:@selector(defaultWorkspace)];
+                // LSApplicationProxy for bundle ID
+                Class LSProxyCls = objc_getClass("LSApplicationProxy");
+                if (LSProxyCls && ws) {
+#pragma clang diagnostic push
+#pragma clang diagnostic ignored "-Warc-performSelector-leaks"
+                    id proxy = [ws performSelector:@selector(applicationProxyForIdentifier:)
+                                       withObject:[NSString stringWithUTF8String:bundleId]];
+#pragma clang diagnostic pop
+                    if (proxy) {
+                        // 获取 URL schemes
+                        NSArray *schemes = [proxy performSelector:@selector(URLSchemes)];
+                        if (schemes && schemes.count > 0) {
+                            NSString *firstScheme = schemes[0];
+                            NSString *urlStr = [NSString stringWithFormat:@"%@://", firstScheme];
+                            NSURL *url = [NSURL URLWithString:urlStr];
+
+                            typedef void (*SBSOpenSensitiveURLFunc)(CFURLRef url, int flags);
+                            SBSOpenSensitiveURLFunc openSensitive = (SBSOpenSensitiveURLFunc)dlsym(sbsHandle, "SBSOpenSensitiveURLAndUnlockDevice");
+                            if (openSensitive && url) {
+                                openSensitive((__bridge CFURLRef)url, 1);
+                                fprintf(stderr, "[supervisor] SBSOpenSensitiveURL: %@\n", urlStr);
+                                dlclose(sbsHandle);
+                                return EXIT_SUCCESS;
+                            }
+
+                            typedef void (*SBSOpenURLFunc)(CFURLRef url);
+                            SBSOpenURLFunc openURLFunc = (SBSOpenURLFunc)dlsym(sbsHandle, "SBSOpenURL");
+                            if (openURLFunc && url) {
+                                openURLFunc((__bridge CFURLRef)url);
+                                fprintf(stderr, "[supervisor] SBSOpenURL: %@\n", urlStr);
+                                dlclose(sbsHandle);
+                                return EXIT_SUCCESS;
+                            }
+                        }
+                        fprintf(stderr, "[supervisor] no URL schemes found for %s\n", bundleId);
+                    } else {
+                        fprintf(stderr, "[supervisor] no LSApplicationProxy for %s\n", bundleId);
+                    }
+                }
+            }
+            dlclose(sbsHandle);
+        } else {
+            const char *dlErr = dlerror();
+            fprintf(stderr, "[supervisor] dlopen SpringBoardServices failed: %s\n", dlErr ? dlErr : "(null)");
+        }
+
+        fprintf(stderr, "[supervisor] ALL launch methods failed for %s\n", bundleId);
+        return EXIT_FAILURE;
+    }
+
     // 必须以绝对路径运行（vnode 监控需要）
     if (!argv || !argv[0] || argv[0][0] != '/') {
         fprintf(stderr, "[supervisor] must run from absolute path (got: %s)\n",
