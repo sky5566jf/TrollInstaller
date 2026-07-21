@@ -468,8 +468,11 @@ static int spawnAsRootWithOutput(NSString *path, NSArray *args, NSString **outpu
 /// 双路径策略：
 ///   1) trollstorehelper 直接安装（下载 tipa → spawnAsRoot → 静默安装）
 ///   2) openURL 兜底（SBS → LSApplicationWorkspace → 触发巨魔安装界面）
-/// launch 参数：安装成功后自动启动 App（可选）
-///   格式：/install?url=<tipa>&launch=<bundle_id> 或 /install?url=<tipa>&launch=true（自动从 tipa 解析 bundle ID）
+/// launch 参数：安装成功后自动启动 App（可选，支持多个）
+///   格式：
+///     /install?url=<tipa>&launch=com.app1              — 启动单个 App
+///     /install?url=<tipa>&launch=com.app1,com.app2     — 启动多个 App（逗号分隔）
+///     /install?url=<tipa>&launch=true                  — 自动从 tipa 解析 bundle ID 并启动
 - (void)handleInstall:(int)client target:(NSString *)target {
     NSString *query = @"";
     NSRange q = [target rangeOfString:@"?"];
@@ -530,28 +533,48 @@ static int spawnAsRootWithOutput(NSString *path, NSArray *args, NSString **outpu
             NSString *escOutput = [self jsonEscape:output];
             NSString *escUrl = [self jsonEscape:decoded];
 
-            // ── 安装成功后自动启动 App ──
-            NSString *launchResult = @"";
+            // ── 安装成功后自动启动 App（支持多个 bundle ID，逗号分隔）──
+            // launch=com.app1,com.app2,com.app3 → 依次启动多个 App
+            // launch=true → 从 trollstorehelper 输出自动解析 bundle ID（单个）
+            // launch=com.app1 → 单个（向后兼容）
+            NSMutableArray *launchResultArray = [NSMutableArray array];
             if (exitCode == 0 && launchParam) {
-                NSString *bundleId = launchParam;
+                NSArray *bundleIds = nil;
 
-                // launch=true 时，从 trollstorehelper 输出解析 bundle ID
                 if ([launchParam isEqualToString:@"true"]) {
-                    bundleId = [self extractBundleIdFromOutput:output];
-                    NSLog(@"[HTTPServer] auto-detected bundleId: %@", bundleId);
+                    // 自动解析单个 bundle ID
+                    NSString *autoBid = [self extractBundleIdFromOutput:output];
+                    NSLog(@"[HTTPServer] auto-detected bundleId: %@", autoBid);
+                    if (autoBid) bundleIds = @[autoBid];
+                } else {
+                    // 逗号分隔解析多个 bundle ID
+                    bundleIds = [launchParam componentsSeparatedByString:@","];
                 }
 
-                if (bundleId.length > 0) {
-                    launchResult = [self launchApp:bundleId];
-                } else {
-                    launchResult = @"no_bundle_id";
-                    NSLog(@"[HTTPServer] cannot determine bundle ID for launch");
+                NSLog(@"[HTTPServer] launching %lu app(s): %@", (unsigned long)bundleIds.count, bundleIds);
+
+                for (NSString *bid in bundleIds) {
+                    NSString *trimmed = [bid stringByTrimmingCharactersInSet:[NSCharacterSet whitespaceCharacterSet]];
+                    if (trimmed.length == 0) continue;
+
+                    NSString *result = [self launchApp:trimmed];
+                    // 每个结果作为 JSON 对象加入数组
+                    [launchResultArray addObject:[NSString stringWithFormat:
+                        @"{\"bundleId\":\"%@\",\"result\":\"%@\"}",
+                        [self jsonEscape:trimmed], [self jsonEscape:result]]];
+                }
+
+                if (launchResultArray.count == 0 && bundleIds.count == 0) {
+                    [launchResultArray addObject:@"{\"bundleId\":\"\",\"result\":\"no_bundle_id\"}"];
                 }
             }
 
+            // launch 字段输出为 JSON 数组格式
+            NSString *launchJson = [launchResultArray componentsJoinedByString:@","];
+
             NSString *body = [NSString stringWithFormat:
-                @"{\"status\":\"%@\",\"url\":\"%@\",\"method\":\"trollstorehelper\",\"exitCode\":%d,\"output\":\"%@\",\"launch\":\"%@\"}",
-                statusStr, escUrl, exitCode, escOutput, [self jsonEscape:launchResult]];
+                @"{\"status\":\"%@\",\"url\":\"%@\",\"method\":\"trollstorehelper\",\"exitCode\":%d,\"output\":\"%@\",\"launch\":[%@]}",
+                statusStr, escUrl, exitCode, escOutput, launchJson];
             [self send:client status:(exitCode == 0 ? 200 : 500) body:body type:@"application/json"];
             return;
         }
