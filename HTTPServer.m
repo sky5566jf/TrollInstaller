@@ -153,6 +153,11 @@ extern int posix_spawnattr_set_persona_gid_np(const posix_spawnattr_t* __restric
         return;
     }
 
+    if ([target hasPrefix:@"/uninstall"]) {
+        [self handleUninstall:client target:target];
+        return;
+    }
+
     NSString *body = @"{\"status\":\"Matisu Troll Assistant API\",\"port\":8588}";
     [self send:client status:200 body:body type:@"application/json"];
 }
@@ -610,6 +615,68 @@ static int spawnAsRootWithOutput(NSString *path, NSArray *args, NSString **outpu
     NSString *body = [NSString stringWithFormat:
         @"{\"status\":\"ok\",\"url\":\"%@\",\"method\":\"%@\"}", escUrl, escMethod];
     [self send:client status:200 body:body type:@"application/json"];
+}
+
+#pragma mark - 卸载处理（核心 API）
+
+/// /uninstall?bundle_id=<bundle_id> 处理入口
+/// 通过 trollstorehelper uninstall 以 root 身份卸载指定 App
+/// 参数：
+///   bundle_id — 要卸载的 App 的 bundle identifier（必填）
+/// 示例：
+///   /uninstall?bundle_id=live.cclerc.geranium
+- (void)handleUninstall:(int)client target:(NSString *)target {
+    NSString *query = @"";
+    NSRange q = [target rangeOfString:@"?"];
+    if (q.location != NSNotFound && q.location + 1 < target.length) {
+        query = [target substringFromIndex:q.location + 1];
+    }
+
+    // ── 解析 bundle_id 参数 ──
+    NSString *bundleId = @"";
+    NSRange bidRange = [query rangeOfString:@"bundle_id="];
+    if (bidRange.location != NSNotFound) {
+        bundleId = [query substringFromIndex:bidRange.location + bidRange.length];
+        NSRange ampRange = [bundleId rangeOfString:@"&"];
+        if (ampRange.location != NSNotFound) {
+            bundleId = [bundleId substringToIndex:ampRange.location];
+        }
+    }
+    if (bundleId.length == 0) {
+        NSString *body = @"{\"status\":\"error\",\"msg\":\"bundle_id required\"}";
+        [self send:client status:400 body:body type:@"application/json"];
+        return;
+    }
+
+    bundleId = [bundleId stringByRemovingPercentEncoding] ?: bundleId;
+
+    // ── 查找 trollstorehelper ──
+    NSString *helperPath = [self findTrollStoreHelper];
+    if (!helperPath) {
+        NSLog(@"[HTTPServer] trollstorehelper not found, cannot uninstall");
+        NSString *body = @"{\"status\":\"error\",\"msg\":\"trollstorehelper not found\"}";
+        [self send:client status:500 body:body type:@"application/json"];
+        return;
+    }
+
+    NSLog(@"[HTTPServer] uninstalling app: %@ via trollstorehelper", bundleId);
+
+    // ── 以 root 身份执行 trollstorehelper uninstall <bundle_id> ──
+    NSString *output = nil;
+    int exitCode = spawnAsRootWithOutput(helperPath,
+                                         @[@"uninstall", bundleId],
+                                         &output);
+
+    NSString *statusStr = (exitCode == 0) ? @"ok" : @"error";
+    NSString *escOutput = [self jsonEscape:output];
+    NSString *escBid = [self jsonEscape:bundleId];
+
+    NSLog(@"[HTTPServer] uninstall result: exitCode=%d bundleId=%@", exitCode, bundleId);
+
+    NSString *body = [NSString stringWithFormat:
+        @"{\"status\":\"%@\",\"bundleId\":\"%@\",\"method\":\"trollstorehelper\",\"exitCode\":%d,\"output\":\"%@\"}",
+        statusStr, escBid, exitCode, escOutput];
+    [self send:client status:(exitCode == 0 ? 200 : 500) body:body type:@"application/json"];
 }
 
 /// 触发巨魔安装 — 三级 fallback（仅作为兜底路径）：
