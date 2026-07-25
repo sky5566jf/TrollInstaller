@@ -9,15 +9,15 @@
 
 ## 概述
 
-Matisu 巨魔助手通过 TrollStore 安装到 iOS 设备后，在后台运行一个 HTTP 服务（端口 8588），提供远程安装 `.tipa` 文件和自动启动 App 的能力。
+Matisu 巨魔助手通过 TrollStore 安装到 iOS 设备后，在后台运行一个 HTTP 服务（端口 8588），提供远程安装 `.tipa`/`.ipa` 文件和自动启动 App 的能力。
 
 ### 核心特性
 
 | 特性 | 说明 |
 |------|------|
-| 静默安装 | 通过 `trollstorehelper` 以 root 权限直接安装 tipa，无需用户确认 |
+| 静默安装 | 通过 `trollstorehelper` 以 root 权限直接安装 tipa/ipa，无需用户确认 |
 | 静默卸载 | 通过 `trollstorehelper` 以 root 权限卸载指定 App |
-| 自动启动 | 安装完成后可自动启动指定 App（支持多个） |
+| 自动启动 | 安装完成后可自动启动指定 App（支持多个），内置延迟+重试机制 |
 | 后台常驻 | App 被划掉后 supervisor 进程存活，API 继续可用 |
 | 跨平台调用 | 标准 HTTP 接口，任何设备/语言均可调用 |
 
@@ -57,19 +57,21 @@ curl http://<设备IP>:8588/
 
 ---
 
-### 2. 安装 tipa（核心接口）
+### 2. 安装 tipa/ipa（核心接口）
 
-下载 tipa 文件并以 root 权限静默安装到设备，可选安装后自动启动 App。
+下载 tipa/ipa 文件并以 root 权限静默安装到设备，可选安装后自动启动 App。
+
+> **支持格式**：`.tipa`（TrollStore 专用）和 `.ipa`（标准 IPA）均可。trollstorehelper 读取文件内容（zip 格式），不依赖后缀名，会自动应用 CoreTrust bypass 签名。
 
 ```
-GET /install?url=<tipa下载地址>&launch=<bundle_id>
+GET /install?url=<下载地址>&launch=<bundle_id>
 ```
 
 #### 参数说明
 
 | 参数 | 必填 | 说明 |
 |------|------|------|
-| `url` | 是 | tipa 文件的 HTTP 下载地址（需 URL 编码） |
+| `url` | 是 | tipa/ipa 文件的 HTTP 下载地址（需 URL 编码） |
 | `launch` | 否 | 安装成功后自动启动的 App bundle ID，支持三种格式 |
 
 #### `launch` 参数格式
@@ -79,6 +81,13 @@ GET /install?url=<tipa下载地址>&launch=<bundle_id>
 | 单个 bundle ID | 启动一个 App | `launch=com.example.app` |
 | 逗号分隔多个 | 依次启动多个 App，**每个间隔 10 秒** | `launch=com.app1,com.app2,com.app3` |
 | `true` | 自动从 trollstorehelper 输出解析 bundle ID 并启动 | `launch=true` |
+
+> **`launch=true` 解析策略（三层）**：
+> 1. 从输出 `ID: <bundle_id>` 行提取
+> 2. 从 `[installApp] new app path: <path>` 提取路径并读取 Info.plist 的 CFBundleIdentifier
+> 3. 正则兜底：从输出中搜索 reverse-DNS 格式字符串（com./org./net./io./live./app. 前缀）
+
+> **启动重试机制**：安装成功后先等待 2 秒让 Installd 完成系统注册，再启动 App。若启动失败（exitCode ≠ 0），自动间隔 3 秒重试，最多尝试 3 次。
 
 #### 请求示例
 
@@ -388,25 +397,31 @@ curl "http://192.69.0.41:8588/install?url=http://192.69.0.24:8878/UnknownApp.tip
 | 问题 | 可能原因 | 解决方案 |
 |------|---------|---------|
 | 连接超时 | App 未启动或 supervisor 未运行 | 在设备上打开一次 Matisu 巨魔助手 App |
-| `exitCode` 非 0 | tipa 下载失败或文件损坏 | 检查 url 参数是否可访问 |
-| `launch` 中 `ret=7` | App 未安装成功 | 检查 exitCode 和 output 日志 |
+| `exitCode` 非 0 | 文件下载失败或文件损坏 | 检查 url 参数是否可访问，确认 tipa/ipa 文件有效 |
+| `launch` 中 `ret=7` | App 未安装成功或 Installd 尚未注册 | 已内置 2s 延迟 + 3 次重试，若仍失败检查 exitCode 和 output |
 | `launch` 中 `ret=9` | supervisor 缺少 entitlement | 重新安装最新版 tipa |
+| `launch` 中 `no_bundle_id` | `launch=true` 时无法从输出解析 bundle ID | 改为显式传 bundle ID：`launch=com.xxx.app` |
+| `launch` 中 `[failed after 3 attempts]` | 3 次重试均失败 | 检查 App 是否真正安装成功，查看 output 日志 |
 | `method` 为 `dlopen_failed` | trollstorehelper 未找到 | 确认设备已安装 TrollStore |
-| `download_failed` | tipa 下载地址不可达 | 确保设备能访问该 URL |
+| `download_failed` | 文件下载地址不可达 | 确保设备能访问该 URL |
 
 ---
 
 ## 注意事项
 
-1. **tipa 下载地址**：必须是设备能够直接访问的 HTTP 地址。如果 tipa 在本地 PC 上，需要先搭建 HTTP 服务（如 `python3 -m http.server`）。
+1. **支持格式**：`.tipa`（TrollStore 专用）和 `.ipa`（标准 IPA）均可安装。trollstorehelper 不依赖后缀名，会自动应用 CoreTrust bypass 签名。
 
-2. **多个 App 启动间隔**：使用逗号分隔的多个 bundle ID 时，从第二个 App 开始，每个启动前等待 10 秒，确保上一个 App 完成初始化。
+2. **tipa/ipa 下载地址**：必须是设备能够直接访问的 HTTP 地址。如果文件在本地 PC 上，需要先搭建 HTTP 服务（如 `python3 -m http.server`）。
 
-3. **自安装限制**：不能用此 API 安装 Matisu 巨魔助手自身（trollstorehelper 替换 App 会杀掉关联进程导致连接断开）。更新自身需通过 SSH + `sudo trollstorehelper install` 方式。
+3. **多个 App 启动间隔**：使用逗号分隔的多个 bundle ID 时，从第二个 App 开始，每个启动前等待 10 秒，确保上一个 App 完成初始化。
 
-4. **重启后需手动启动**：非越狱环境下，重启手机后需要手动打开一次 App 来拉起 supervisor。越狱环境可通过 LaunchDaemon 实现开机自启。
+4. **启动重试机制**：安装成功后自动等待 2 秒（Installd 注册延迟），再启动 App。若启动失败，自动重试最多 3 次（间隔 3 秒），应对刚安装完 App 尚未在系统中完全就绪的时序问题。
 
-5. **URL 编码**：如果 tipa 地址包含特殊字符（如 `&`、`=`、空格），需要 URL 编码。
+5. **自安装限制**：不能用此 API 安装 Matisu 巨魔助手自身（trollstorehelper 替换 App 会杀掉关联进程导致连接断开）。更新自身需通过 SSH + `sudo trollstorehelper install` 方式。
+
+6. **重启后需手动启动**：非越狱环境下，重启手机后需要手动打开一次 App 来拉起 supervisor。越狱环境可通过 LaunchDaemon 实现开机自启。
+
+7. **URL 编码**：如果下载地址包含特殊字符（如 `&`、`=`、空格），需要 URL 编码。
 
 ---
 

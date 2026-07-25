@@ -414,10 +414,25 @@ static int spawnAsRootWithOutput(NSString *path, NSArray *args, NSString **outpu
         return nil;
     }
 
-    NSLog(@"[HTTPServer] downloading tipa from: %@", urlString);
+    NSLog(@"[HTTPServer] downloading from: %@", urlString);
 
-    NSString *tempPath = [NSString stringWithFormat:@"/tmp/matisu_install_%lld.tipa",
-                          (long long)(time(NULL))];
+    // 从 URL 路径提取后缀（支持 .tipa / .ipa / 其他），默认 .ipa
+    NSString *urlPath = url.path ?: @"";
+    NSString *ext = @"ipa";
+    NSRange dotRange = [urlPath rangeOfString:@"." options:NSBackwardsSearch];
+    if (dotRange.location != NSNotFound && dotRange.location + 1 < urlPath.length) {
+        NSString *rawExt = [urlPath substringFromIndex:dotRange.location + 1];
+        // 只取字母数字，防止路径参数污染
+        NSCharacterSet *allowed = [NSCharacterSet alphanumericCharacterSet];
+        NSString *cleanExt = [[rawExt componentsSeparatedByCharactersInSet:
+                               [allowed invertedSet]] componentsJoinedByString:@""];
+        if (cleanExt.length > 0 && cleanExt.length <= 10) {
+            ext = [cleanExt lowercaseString];
+        }
+    }
+
+    NSString *tempPath = [NSString stringWithFormat:@"/tmp/matisu_install_%lld.%@",
+                          (long long)(time(NULL)), ext];
 
     // 配置 NSURLSession：带超时控制
     NSURLSessionConfiguration *config = [NSURLSessionConfiguration defaultSessionConfiguration];
@@ -531,30 +546,82 @@ static int spawnAsRootWithOutput(NSString *path, NSArray *args, NSString **outpu
         }
     }
 
+    // 方法3: 从输出中搜索任何看起来像 bundle ID 的行（reverse-DNS 模式兜底）
+    // 匹配至少包含一个点号的 com.xxx.yyy 格式
+    NSRegularExpression *bidRegex = [NSRegularExpression
+        regularExpressionWithPattern:@"\\b([a-zA-Z][a-zA-Z0-9]*\\.[a-zA-Z][a-zA-Z0-9]*(?:\\.[a-zA-Z][a-zA-Z0-9]*)+)\\b"
+        options:0 error:nil];
+    NSArray *matches = [bidRegex matchesInString:output options:0
+                                           range:NSMakeRange(0, output.length)];
+    for (NSTextCheckingResult *match in matches) {
+        NSString *candidate = [output substringWithRange:[match rangeAtIndex:1]];
+        // 过滤掉明显的非 bundle ID（如系统路径、UUID 等）
+        if ([candidate hasPrefix:@"com."] || [candidate hasPrefix:@"org."] ||
+            [candidate hasPrefix:@"net."] || [candidate hasPrefix:@"io."] ||
+            [candidate hasPrefix:@"live."] || [candidate hasPrefix:@"app."]) {
+            NSLog(@"[HTTPServer] extracted bundleId from regex fallback: %@", candidate);
+            return candidate;
+        }
+    }
+
     NSLog(@"[HTTPServer] cannot extract bundleId from trollstorehelper output");
     return nil;
 }
 
-#pragma mark - 启动已安装的 App
+#pragma mark - 启动已安装的 App（带延迟重试）
 
 - (NSString *)launchApp:(NSString *)bundleId {
+    // 默认重试 2 次（共 3 次尝试），间隔 3 秒
+    return [self launchApp:bundleId maxRetries:2 retryDelay:3];
+}
+
+/// 启动 App，支持失败重试
+/// @param bundleId 要启动的 App bundle ID
+/// @param maxRetries 最大重试次数（不含首次尝试），0 = 不重试
+/// @param retryDelay 每次重试前等待秒数
+- (NSString *)launchApp:(NSString *)bundleId maxRetries:(int)maxRetries retryDelay:(int)retryDelay {
     NSString *execPath = [[NSProcessInfo processInfo] arguments][0];
     if (!execPath || execPath.length == 0) {
         NSLog(@"[HTTPServer] cannot determine own executable path");
         return @"no_exec_path";
     }
 
-    NSLog(@"[HTTPServer] launching app %@ via spawnAsRoot(%@ --launch %@)", bundleId, execPath, bundleId);
+    int totalAttempts = maxRetries + 1;
 
-    NSString *output = nil;
-    int exitCode = spawnAsRootWithOutput(execPath,
-                                         @[@"--launch", bundleId],
-                                         &output);
+    for (int attempt = 1; attempt <= totalAttempts; attempt++) {
+        if (attempt > 1) {
+            NSLog(@"[HTTPServer] retry launching %@ (attempt %d/%d) after %ds delay",
+                  bundleId, attempt, totalAttempts, retryDelay);
+            sleep(retryDelay);
+        }
 
-    NSString *result = [NSString stringWithFormat:@"exitCode:%d|%s", exitCode,
-                        output ? [output UTF8String] : "(no output)"];
-    NSLog(@"[HTTPServer] launch result: %@", result);
-    return result;
+        NSLog(@"[HTTPServer] launching app %@ via spawnAsRoot(%@ --launch %@) attempt %d/%d",
+              bundleId, execPath, bundleId, attempt, totalAttempts);
+
+        NSString *output = nil;
+        int exitCode = spawnAsRootWithOutput(execPath,
+                                             @[@"--launch", bundleId],
+                                             &output);
+
+        NSString *result = [NSString stringWithFormat:@"exitCode:%d|%s", exitCode,
+                            output ? [output UTF8String] : "(no output)"];
+        NSLog(@"[HTTPServer] launch result (attempt %d/%d): %@", attempt, totalAttempts, result);
+
+        // 成功则返回
+        if (exitCode == 0) {
+            if (attempt > 1) {
+                result = [result stringByAppendingFormat:@" [succeeded on attempt %d]", attempt];
+            }
+            return result;
+        }
+
+        // 最后一次仍然失败
+        if (attempt == totalAttempts) {
+            return [result stringByAppendingFormat:@" [failed after %d attempts]", totalAttempts];
+        }
+    }
+
+    return @"unexpected";
 }
 
 #pragma mark - 安装处理（核心 API）
@@ -618,6 +685,11 @@ static int spawnAsRootWithOutput(NSString *path, NSArray *args, NSString **outpu
             // ── 安装成功后自动启动 App ──
             NSMutableArray *launchResultArray = [NSMutableArray array];
             if (exitCode == 0 && launchParam) {
+                // 安装完成后等待 2 秒，让 Installd 完成系统注册
+                // 避免 SBS 启动时 App 尚未在 LaunchServices 数据库中就绪
+                NSLog(@"[HTTPServer] install ok, waiting 2s for Installd registration before launch");
+                sleep(2);
+
                 NSArray *bundleIds = nil;
 
                 if ([launchParam isEqualToString:@"true"]) {
