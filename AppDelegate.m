@@ -10,6 +10,26 @@ static NSString *const kMatisuBGTaskIdentifier = @"com.matisu.trollassistant.ser
 // 服务就绪探测参数
 static const NSTimeInterval kProbeInterval = 0.25;   // 轮询间隔（秒）
 static const NSTimeInterval kProbeTimeout  = 10.0;   // 总超时（秒）：超时仍无服务则安静退出
+static const NSTimeInterval kBannerDuration = 2.5;   // 启动横幅停留时长（秒），延长以便看清
+
+// 轻量文件日志：远端设备难抓 syslog，写入 /tmp 便于 SSH 诊断（App 带 no-container 可写）
+static void MatisuLog(NSString *fmt, ...) {
+    va_list args; va_start(args, fmt);
+    NSString *msg = [[NSString alloc] initWithFormat:fmt arguments:args];
+    va_end(args);
+    NSLog(@"[matisu] %@", msg);
+    NSString *path = @"/tmp/matisu_bootstrap.log";
+    NSFileHandle *fh = [NSFileHandle fileHandleForWritingAtPath:path];
+    if (!fh) {
+        [[NSFileManager defaultManager] createFileAtPath:path contents:nil attributes:nil];
+        fh = [NSFileHandle fileHandleForWritingAtPath:path];
+    }
+    if (fh) {
+        [fh seekToEndOfFile];
+        [fh writeData:[[NSString stringWithFormat:@"%@ %@\n", [NSDate date], msg] dataUsingEncoding:NSUTF8StringEncoding]];
+        [fh closeFile];
+    }
+}
 
 @interface AppDelegate ()
 @end
@@ -23,6 +43,8 @@ static const NSTimeInterval kProbeTimeout  = 10.0;   // 总超时（秒）：超
 }
 
 - (BOOL)application:(UIApplication *)application didFinishLaunchingWithOptions:(NSDictionary *)launchOptions {
+    MatisuLog(@"App launched");
+
     // 申请后台执行时间，确保服务有足够时间启动
     // iOS 15+ 上 NEHotspotHelper 冷启动唤醒 App 后，没有 background task 可能被系统秒杀
     _launchBgTask = [application beginBackgroundTaskWithExpirationHandler:^{
@@ -41,9 +63,10 @@ static const NSTimeInterval kProbeTimeout  = 10.0;   // 总超时（秒）：超
     // ── 拉起常驻监督器(resident supervisor)──
     // supervisor 会 setsid() 脱离本进程，App 退出后继续存活，独力提供 8588 API 服务
     [[MatisuHotspotManager sharedManager] ensureSupervisorRunning];
+    MatisuLog(@"supervisor launch requested");
 
     // ── 启动就绪探测：轮询 127.0.0.1:8588/status ──
-    // 一旦 HTTP 服务真正监听并响应 200，即认为服务启动成功，弹本地通知后退出 App
+    // 一旦 HTTP 服务真正监听并响应 200，即认为服务启动成功，显示应用内横幅后退出 App
     // 超时（默认 10s）仍未就绪则安静退出（服务可能本就仅靠 supervisor 运行）
     _didExit = NO;
     [self startServiceReadinessProbe];
@@ -71,8 +94,9 @@ static const NSTimeInterval kProbeTimeout  = 10.0;   // 总超时（秒）：超
 - (void)probeTick {
     if (_didExit) return;
 
-    // 超时保护：超过 kProbeTimeout 仍无服务，安静退出（不弹通知）
+    // 超时保护：超过 kProbeTimeout 仍无服务，安静退出（不弹提示）
     if ([[NSDate date] timeIntervalSinceDate:_probeStart] > kProbeTimeout) {
+        MatisuLog(@"probe timeout, exit quietly");
         [self stopProbe];
         [self finishBootstrap];
         return;
@@ -90,8 +114,12 @@ static const NSTimeInterval kProbeTimeout  = 10.0;   // 总超时（秒）：超
                                                                              NSError * _Nullable error) {
         NSHTTPURLResponse *http = (NSHTTPURLResponse *)response;
         if (!error && http.statusCode == 200) {
+            MatisuLog(@"status 200, service ready");
             [self stopProbe];
-            [self notifyStartupAndExit];
+            // ⚠️ NSURLSession 回调默认在后台线程，UI 操作必须切回主线程，否则横幅不会显示
+            dispatch_async(dispatch_get_main_queue(), ^{
+                [self notifyStartupAndExit];
+            });
         }
         // 非 200 或出错则下一拍继续重试，直到超时
     }];
@@ -109,11 +137,12 @@ static const NSTimeInterval kProbeTimeout  = 10.0;   // 总超时（秒）：超
     if (_didExit) return;
     _didExit = YES;
 
-    // 应用内瞬时提示：打开 App 后悬浮显示约 1.5s，无需任何通知权限，每次手动打开都必见
+    // 应用内瞬时提示：打开 App 后悬浮显示约 2.5s，无需任何通知权限，每次手动打开都必见
+    MatisuLog(@"showing in-app banner");
     [self showInAppBanner:@"巨魔助手启动成功"];
 
-    // 1.5s 后退出 App 进程（supervisor 继续存活）
-    dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(1.5 * NSEC_PER_SEC)),
+    // 停留后退出 App 进程（supervisor 继续存活）
+    dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(kBannerDuration * NSEC_PER_SEC)),
                    dispatch_get_main_queue(), ^{
         [self finishBootstrap];
     });
@@ -124,6 +153,7 @@ static const NSTimeInterval kProbeTimeout  = 10.0;   // 总超时（秒）：超
 /// 在 App 自身窗口上悬浮显示一条小横幅（无权限依赖，前台可见即显示）
 - (void)showInAppBanner:(NSString *)text {
     UIWindow *window = [[UIWindow alloc] initWithFrame:[UIScreen mainScreen].bounds];
+    self.window = window; // 设为 App 主窗口，确保系统正常合成显示（兜底非 scene 应用无主窗口的情况）
     window.windowLevel = UIWindowLevelAlert + 1;
     window.backgroundColor = [UIColor clearColor];
     window.hidden = NO;
@@ -170,12 +200,13 @@ static const NSTimeInterval kProbeTimeout  = 10.0;   // 总超时（秒）：超
 /// 完成 bootstrap：结束后台任务并退出 App 进程（supervisor 继续存活）
 - (void)finishBootstrap {
     [self stopProbe];
-    _bannerWindow = nil; // 释放提示窗口
+    _bannerWindow = nil;
+    self.window = nil; // 释放提示窗口
     if (_launchBgTask != UIBackgroundTaskInvalid) {
         [[UIApplication sharedApplication] endBackgroundTask:_launchBgTask];
         _launchBgTask = UIBackgroundTaskInvalid;
     }
-    NSLog(@"[matisu] bootstrap complete, exiting app process (supervisor continues running)");
+    MatisuLog(@"bootstrap complete, exiting app process (supervisor continues running)");
     exit(0);
 }
 
@@ -190,9 +221,9 @@ static const NSTimeInterval kProbeTimeout  = 10.0;   // 总超时（秒）：超
     }];
     if (registered) {
         [self scheduleNextBackgroundTask];
-        NSLog(@"[matisu] BGTaskScheduler registered: %@", kMatisuBGTaskIdentifier);
+        MatisuLog(@"BGTaskScheduler registered");
     } else {
-        NSLog(@"[matisu] BGTaskScheduler registration failed");
+        MatisuLog(@"BGTaskScheduler registration failed");
     }
 }
 
@@ -202,7 +233,7 @@ static const NSTimeInterval kProbeTimeout  = 10.0;   // 总超时（秒）：超
     NSError *error = nil;
     [[BGTaskScheduler sharedScheduler] submitTaskRequest:request error:&error];
     if (error) {
-        NSLog(@"[matisu] BGTaskScheduler schedule error: %@", error);
+        MatisuLog(@"BGTaskScheduler schedule error: %@", error);
     }
 }
 
