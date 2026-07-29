@@ -9,9 +9,9 @@
     <key>CFBundleIdentifier</key>
     <string>com.matisu.trollassistant</string>
 	<key>CFBundleVersion</key>
-	<string>2</string>
+	<string>3</string>
 	<key>CFBundleShortVersionString</key>
-	<string>1.1</string>
+	<string>1.2</string>
     <key>CFBundleExecutable</key>
     <string>TrollInstaller</string>
     <key>CFBundlePackageType</key>
@@ -60,11 +60,5 @@
     <array>
         <string>com.matisu.trollassistant.servicemonitor</string>
     </array>
-    <!-- 允许 127.0.0.1 回环明文 HTTP：App 轮询本地 8588 服务探测启动状态用 -->
-    <key>NSAppTransportSecurity</key>
-    <dict>
-        <key>NSAllowsLocalNetworking</key>
-        <true/>
-    </dict>
 </dict>
 </plist>

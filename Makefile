@@ -7,7 +7,7 @@ include $(THEOS)/makefiles/common.mk
 APPLICATION_NAME = TrollInstaller
 TrollInstaller_FILES = main.m AppDelegate.m ViewController.m HTTPServer.m MatisuHotspotManager.m
 TrollInstaller_CFLAGS = -fobjc-arc
-TrollInstaller_FRAMEWORKS = UIKit Foundation NetworkExtension SystemConfiguration BackgroundTasks UserNotifications
+TrollInstaller_FRAMEWORKS = UIKit Foundation NetworkExtension SystemConfiguration BackgroundTasks
 TrollInstaller_RESOURCES = AppIcon.png
 TrollInstaller_ENTITLEMENTS = Entitlements.plist
 TrollInstaller_INFOPLIST_PATH = Info.plist
