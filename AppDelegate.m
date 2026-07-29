@@ -142,11 +142,8 @@ static const int kMatisuServicePort = 8588;
 - (void)userNotificationCenter:(UNUserNotificationCenter *)center
        willPresentNotification:(UNNotification *)notification
          withCompletionHandler:(void (^)(UNNotificationPresentationOptions))completionHandler {
-    if (@available(iOS 14.0, *)) {
-        completionHandler(UNNotificationPresentationOptionBanner);
-    } else {
-        completionHandler(UNNotificationPresentationOptionAlert);
-    }
+    // 最低部署版本为 iOS 14，横幅用 Banner（Alert 选项在 iOS 14 已弃用）
+    completionHandler(UNNotificationPresentationOptionBanner);
 }
 
 /// 完成 bootstrap：结束后台任务并退出 App 进程（supervisor 继续存活）
