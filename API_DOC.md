@@ -18,6 +18,7 @@ Matisu 巨魔助手通过 TrollStore 安装到 iOS 设备后，在后台运行�
 | 静默安装 | 通过 `trollstorehelper` 以 root 权限直接安装 tipa/ipa，无需用户确认 |
 | 静默卸载 | 通过 `trollstorehelper` 以 root 权限卸载指定 App |
 | 自动启动 | 安装完成后可自动启动指定 App（支持多个），内置延迟+重试机制 |
+| 独立启动 | 仅启动已安装的 App（不安装），支持多个 + 自定义间隔（`/launch`） |
 | 后台常驻 | App 被划掉后 supervisor 进程存活，API 继续可用 |
 | 跨平台调用 | 标准 HTTP 接口，任何设备/语言均可调用 |
 
@@ -267,6 +268,80 @@ curl "http://192.69.0.41:8588/uninstall?bundle_id=live.cclerc.geranium"
 | `method` | string | 卸载方法，通常为 `"trollstorehelper"` |
 | `exitCode` | int | trollstorehelper 退出码，`0` = 成功 |
 | `output` | string | trollstorehelper 的完整输出日志 |
+
+---
+
+### 4. 启动已安装 App（仅启动，不安装）
+
+启动设备上**已安装**的 App（不重新下载/安装），支持依次启动多个 + 自定义间隔。适用于「装完就走、之后单独拉起」的场景，例如先启动 `com.matisu.one.nxs`，间隔若干秒再启动 `com.matisu.xcs`。
+
+```
+GET /launch?apps=<bundle_id1>,<bundle_id2>&interval=<秒>
+```
+
+#### 参数说明
+
+| 参数 | 必填 | 说明 |
+|------|------|------|
+| `apps` | 是 | 要启动的 App bundle ID，逗号分隔支持多个（别名 `bundle_ids=`） |
+| `interval` | 否 | 每个 App 启动之间的等待间隔（秒），默认 5，范围 1–60 |
+
+> **说明**：`interval` 仅作用于「第 2 个及之后」的 App 之前——第一个 App 立即启动。每个 App 内部仍沿用 `launchApp` 的失败重试（最多 3 次，间隔 3 秒）。
+
+#### 请求示例
+
+**启动单个 App：**
+```bash
+curl "http://192.69.0.41:8588/launch?apps=com.matisu.one.nxs"
+```
+
+**依次启动两个 App，间隔 5 秒（常用场景）：**
+```bash
+curl "http://192.69.0.41:8588/launch?apps=com.matisu.one.nxs,com.matisu.xcs&interval=5"
+```
+
+**依次启动多个 App，间隔 10 秒：**
+```bash
+curl "http://192.69.0.41:8588/launch?apps=com.app1,com.app2,com.app3&interval=10"
+```
+
+#### 响应示例
+
+**启动成功：**
+```json
+{
+  "status": "ok",
+  "interval": 5,
+  "launches": [
+    {
+      "bundleId": "com.matisu.one.nxs",
+      "result": "exitCode:0|[supervisor] --launch mode: bundleId=com.matisu.one.nxs\n[supervisor] SBSLaunchAndOptions(5param) ret=0\n..."
+    },
+    {
+      "bundleId": "com.matisu.xcs",
+      "result": "exitCode:0|[supervisor] SBSLaunchAndOptions(5param) ret=0\n..."
+    }
+  ]
+}
+```
+
+**缺少参数：**
+```json
+{
+  "status": "error",
+  "msg": "apps required (comma-separated bundle ids)"
+}
+```
+
+#### 响应字段
+
+| 字段 | 类型 | 说明 |
+|------|------|------|
+| `status` | string | `"ok"` 成功 |
+| `interval` | int | 实际使用的启动间隔（秒） |
+| `launches` | array | 每个启动 App 的结果，元素含 `bundleId` 与 `result` |
+
+> **与 `/install?launch=` 的区别**：`/install` 是「下载安装 + 启动」，`/launch` 只启动不安装。若要启动刚安装完的 App，用 `/install` 的 `launch` 参数（内置 2 秒 Installd 注册延迟）；若要启动早已装好的 App，用 `/launch`。
 
 ---
 

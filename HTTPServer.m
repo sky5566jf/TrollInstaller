@@ -194,7 +194,12 @@ static void sendAll(int fd, const char *data, size_t len) {
         return;
     }
 
-    NSString *body = @"{\"status\":\"Matisu Troll Assistant API\",\"port\":8588,\"endpoints\":[\"/install\",\"/uninstall\",\"/status\"]}";
+    if ([target hasPrefix:@"/launch"]) {
+        [self handleLaunch:client target:target];
+        return;
+    }
+
+    NSString *body = @"{\"status\":\"Matisu Troll Assistant API\",\"port\":8588,\"endpoints\":[\"/install\",\"/uninstall\",\"/status\",\"/launch\"]}";
     [self send:client status:200 body:body type:@"application/json"];
 }
 
@@ -215,6 +220,89 @@ static void sendAll(int fd, const char *data, size_t len) {
     NSString *body = [NSString stringWithFormat:
         @"{\"status\":\"ok\",\"port\":%d,\"supervisor\":{\"pid\":%ld,\"running\":%@},\"trollstorehelper\":\"%@\"}",
         TI_PORT, (long)supPid, supRunning ? @"true" : @"false", escHelper];
+    [self send:client status:200 body:body type:@"application/json"];
+}
+
+#pragma mark - /launch 端点（仅启动已安装 App）
+
+/// /launch — 启动已安装的 App（不安装），支持多个 + 自定义间隔
+/// 示例: /launch?apps=com.matisu.one.nxs,com.matisu.xcs&interval=5
+- (void)handleLaunch:(int)client target:(NSString *)target {
+    NSString *query = @"";
+    NSRange q = [target rangeOfString:@"?"];
+    if (q.location != NSNotFound && q.location + 1 < target.length) {
+        query = [target substringFromIndex:q.location + 1];
+    }
+
+    // ── 解析 apps 参数（逗号分隔 bundle ID）──
+    NSString *appsParam = @"";
+    NSRange appsRange = [query rangeOfString:@"apps="];
+    if (appsRange.location == NSNotFound) {
+        // 兼容别名 bundle_ids=
+        appsRange = [query rangeOfString:@"bundle_ids="];
+    }
+    if (appsRange.location != NSNotFound) {
+        appsParam = [query substringFromIndex:appsRange.location + appsRange.length];
+        NSRange ampRange = [appsParam rangeOfString:@"&"];
+        if (ampRange.location != NSNotFound) {
+            appsParam = [appsParam substringToIndex:ampRange.location];
+        }
+        appsParam = [appsParam stringByRemovingPercentEncoding] ?: appsParam;
+    }
+
+    if (appsParam.length == 0) {
+        NSString *body = @"{\"status\":\"error\",\"msg\":\"apps required (comma-separated bundle ids)\"}";
+        [self send:client status:400 body:body type:@"application/json"];
+        return;
+    }
+
+    NSArray *bundleIds = [appsParam componentsSeparatedByString:@","];
+
+    // ── 解析 interval 参数（每个启动之间等待秒数，默认 5，clamp 1..60）──
+    int interval = 5;
+    NSRange intRange = [query rangeOfString:@"interval="];
+    if (intRange.location != NSNotFound) {
+        NSString *intStr = [query substringFromIndex:intRange.location + intRange.length];
+        NSRange ampRange = [intStr rangeOfString:@"&"];
+        if (ampRange.location != NSNotFound) {
+            intStr = [intStr substringToIndex:ampRange.location];
+        }
+        int parsed = [intStr intValue];
+        if (parsed >= 1 && parsed <= 60) {
+            interval = parsed;
+        }
+    }
+
+    NSLog(@"[HTTPServer] /launch apps=%@ interval=%ds", bundleIds, interval);
+
+    NSMutableArray *launchResultArray = [NSMutableArray array];
+    NSUInteger idx = 0;
+    for (NSString *rawBid in bundleIds) {
+        NSString *bid = [rawBid stringByTrimmingCharactersInSet:
+                         [NSCharacterSet whitespaceAndNewlineCharacterSet]];
+        if (bid.length == 0) continue;
+
+        if (idx > 0) {
+            NSLog(@"[HTTPServer] /launch waiting %ds before next app: %@", interval, bid);
+            sleep(interval);
+        }
+
+        NSString *result = [self launchApp:bid];
+        [launchResultArray addObject:[NSString stringWithFormat:
+            @"{\"bundleId\":\"%@\",\"result\":\"%@\"}",
+            [self jsonEscape:bid], [self jsonEscape:result]]];
+        idx++;
+    }
+
+    if (launchResultArray.count == 0) {
+        NSString *body = @"{\"status\":\"error\",\"msg\":\"no valid bundle id provided\"}";
+        [self send:client status:400 body:body type:@"application/json"];
+        return;
+    }
+
+    NSString *launchJson = [launchResultArray componentsJoinedByString:@","];
+    NSString *body = [NSString stringWithFormat:
+        @"{\"status\":\"ok\",\"interval\":%d,\"launches\":[%@]}", interval, launchJson];
     [self send:client status:200 body:body type:@"application/json"];
 }
 
