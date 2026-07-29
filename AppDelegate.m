@@ -10,10 +10,6 @@ static NSString *const kMatisuBGTaskIdentifier = @"com.matisu.trollassistant.ser
 @implementation AppDelegate
 
 - (BOOL)application:(UIApplication *)application didFinishLaunchingWithOptions:(NSDictionary *)launchOptions {
-    self.window = [[UIWindow alloc] initWithFrame:[UIScreen mainScreen].bounds];
-    self.window.rootViewController = [[ViewController alloc] init];
-    [self.window makeKeyAndVisible];
-
     // 申请后台执行时间，确保服务有足够时间启动
     // iOS 15+ 上 NEHotspotHelper 冷启动唤醒 App 后，没有 background task 可能被系统秒杀
     __block UIBackgroundTaskIdentifier launchBgTask = [application beginBackgroundTaskWithExpirationHandler:^{
@@ -30,16 +26,20 @@ static NSString *const kMatisuBGTaskIdentifier = @"com.matisu.trollassistant.ser
     [self registerBackgroundTask];
 
     // ── 拉起常驻监督器(resident supervisor)──
-    // 统一使用 MatisuHotspotManager.ensureSupervisorRunning
-    // （内部有锁文件检查避免重复 spawn，带 beginBackgroundTask 保命）
+    // supervisor 会 setsid() 脱离本进程，App 退出后继续存活，独力提供 8588 API 服务
     [[MatisuHotspotManager sharedManager] ensureSupervisorRunning];
 
-    // 延迟释放 launch background task（给 supervisor 足够启动时间）
-    dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(5.0 * NSEC_PER_SEC)), dispatch_get_main_queue(), ^{
+    // ── Bootstrap-only：本软件本质是 API 服务，UI 非必需 ──
+    // 拉起 supervisor 后 App 进程主动退出，仅保留 ~3-6MB 的 supervisor 常驻，
+    // 把整体常驻内存从 ~20-45MB 降到 ~3-6MB。
+    // 延迟 3s：确保 ensureSupervisorRunning 的初始 spawn(同步) + 2s 复查均已完成。
+    dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(3.0 * NSEC_PER_SEC)), dispatch_get_main_queue(), ^{
         if (launchBgTask != UIBackgroundTaskInvalid) {
             [application endBackgroundTask:launchBgTask];
             launchBgTask = UIBackgroundTaskInvalid;
         }
+        NSLog(@"[matisu] bootstrap complete, exiting app process (supervisor continues running)");
+        exit(0);
     });
 
     return YES;

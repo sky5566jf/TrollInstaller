@@ -199,7 +199,11 @@ static void sendAll(int fd, const char *data, size_t len) {
         return;
     }
 
-    NSString *body = @"{\"status\":\"Matisu Troll Assistant API\",\"port\":8588,\"endpoints\":[\"/install\",\"/uninstall\",\"/status\",\"/launch\"]}";
+    NSString *version = [[NSBundle mainBundle] objectForInfoDictionaryKey:@"CFBundleShortVersionString"] ?: @"unknown";
+    NSString *escVersion = [self jsonEscape:version];
+    NSString *body = [NSString stringWithFormat:
+        @"{\"status\":\"Matisu Troll Assistant API\",\"version\":\"%@\",\"port\":8588,\"endpoints\":[\"/install\",\"/uninstall\",\"/status\",\"/launch\"]}",
+        escVersion];
     [self send:client status:200 body:body type:@"application/json"];
 }
 
@@ -217,9 +221,12 @@ static void sendAll(int fd, const char *data, size_t len) {
     NSString *helperPath = [self findTrollStoreHelper];
     NSString *escHelper = [self jsonEscape:helperPath ?: @"not_found"];
 
+    NSString *version = [[NSBundle mainBundle] objectForInfoDictionaryKey:@"CFBundleShortVersionString"] ?: @"unknown";
+    NSString *escVersion = [self jsonEscape:version];
+
     NSString *body = [NSString stringWithFormat:
-        @"{\"status\":\"ok\",\"port\":%d,\"supervisor\":{\"pid\":%ld,\"running\":%@},\"trollstorehelper\":\"%@\"}",
-        TI_PORT, (long)supPid, supRunning ? @"true" : @"false", escHelper];
+        @"{\"status\":\"ok\",\"version\":\"%@\",\"port\":%d,\"supervisor\":{\"pid\":%ld,\"running\":%@},\"trollstorehelper\":\"%@\"}",
+        escVersion, TI_PORT, (long)supPid, supRunning ? @"true" : @"false", escHelper];
     [self send:client status:200 body:body type:@"application/json"];
 }
 

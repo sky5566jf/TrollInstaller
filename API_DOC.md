@@ -45,6 +45,7 @@ curl http://<设备IP>:8588/
 ```json
 {
   "status": "Matisu Troll Assistant API",
+  "version": "1.0",
   "port": 8588
 }
 ```
@@ -54,7 +55,19 @@ curl http://<设备IP>:8588/
 | 字段 | 类型 | 说明 |
 |------|------|------|
 | `status` | string | 固定值，标识服务名称 |
+| `version` | string | 软件版本号（取自 `CFBundleShortVersionString`） |
 | `port` | int | 服务端口号 |
+
+> **`GET /status`**：返回更详细的运行状态，同样包含 `version` 字段，外加 `supervisor`（pid / running）与 `trollstorehelper` 路径。示例：
+> ```json
+> {
+>   "status": "ok",
+>   "version": "1.0",
+>   "port": 8588,
+>   "supervisor": { "pid": 1234, "running": true },
+>   "trollstorehelper": "/var/containers/.../TrollStore.app/trollstorehelper"
+> }
+> ```
 
 ---
 
@@ -387,10 +400,11 @@ curl "http://192.69.0.41:8588/launch?apps=com.app1,com.app2,com.app3&interval=10
 
 ### 后台常驻机制
 
-- App 启动时通过 `posix_spawn` 拉起独立的 `matisusupervisor` 进程
-- supervisor 调用 `setsid()` 脱离 App 进程组，挂到 launchd 名下
-- App 被划掉时，supervisor 不受影响，API 继续可用
-- **注意**：重启手机后需要手动打开一次 App 来拉起 supervisor（非越狱限制）
+- App 启动（被用户打开 / 被 NEHotspotHelper 冷启动唤醒）后，通过 `posix_spawn` 拉起独立的 `matisusupervisor` 进程，**随后 App 进程主动退出**（bootstrap-only 模式），仅保留 supervisor 常驻
+- supervisor 调用 `setsid()` 脱离 App 进程组，挂到 launchd 名下，**独力提供 8588 API 服务**
+- 因此整体常驻内存仅约 3–6 MB（纯 Foundation 守护进程），UI App 不再驻留占用 15–40 MB
+- App 被划掉 / 已退出时，supervisor 不受影响，API 继续可用
+- **注意**：重启手机后需要系统连上 WiFi（触发 NEHotspotHelper）自动唤醒 App 一次来拉起 supervisor（纯巨魔版非越狱的唯一冷启动路径）；越狱环境可用 LaunchDaemon 实现无 WiFi 自启
 
 ---
 
