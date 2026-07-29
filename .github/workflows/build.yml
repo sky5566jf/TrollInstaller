@@ -77,7 +77,8 @@ jobs:
           cp "$APP/TrollInstaller"     stage/TrollInstaller.app/TrollInstaller
           cp "$SUP"                    stage/TrollInstaller.app/matisusupervisor
           cp Info.plist                stage/TrollInstaller.app/Info.plist
-          cp AppIcon.png               stage/TrollInstaller.app/AppIcon.png
+          # 用 make_icon.py 绘制版本号角标 + 256色量化压缩（~400KB vs 原 1.28MB）
+          python3 make_icon.py --in AppIcon.png --out stage/TrollInstaller.app/AppIcon.png --version "$NEWVER"
 
           # ── ldid ad-hoc 签名 + 嵌入 entitlements ──
           # 这一步至关重要：entitlements (no-container / springboard.opensensitiveurl 等)
