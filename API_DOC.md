@@ -19,6 +19,7 @@ Matisu 巨魔助手通过 TrollStore 安装到 iOS 设备后，在后台运行�
 | 静默卸载 | 通过 `trollstorehelper` 以 root 权限卸载指定 App |
 | 自动启动 | 安装完成后可自动启动指定 App（支持多个），内置延迟+重试机制 |
 | 独立启动 | 仅启动已安装的 App（不安装），支持多个 + 自定义间隔（`/launch`） |
+| 端口健康检查 | 定时检测指定端口（8182/3333）是否存活，未监听则自动拉起对应 App（`/ports` 查看状态） |
 | 后台常驻 | App 被划掉后 supervisor 进程存活，API 继续可用 |
 | 跨平台调用 | 标准 HTTP 接口，任何设备/语言均可调用 |
 
@@ -355,6 +356,58 @@ curl "http://192.69.0.41:8588/launch?apps=com.app1,com.app2,com.app3&interval=10
 | `launches` | array | 每个启动 App 的结果，元素含 `bundleId` 与 `result` |
 
 > **与 `/install?launch=` 的区别**：`/install` 是「下载安装 + 启动」，`/launch` 只启动不安装。若要启动刚安装完的 App，用 `/install` 的 `launch` 参数（内置 2 秒 Installd 注册延迟）；若要启动早已装好的 App，用 `/launch`。
+
+---
+
+## 端口健康检查（自动拉起守护）
+
+supervisor 内置一个定时任务，周期性检测指定端口是否在监听，若端口未存活则自动拉起对应 App，用于保证关键服务始终在线。
+
+**默认监控配置：**
+
+| 端口 | 对应 App | 行为 |
+|------|----------|------|
+| `8182` | `com.matisu.xcs` | 端口未监听 → 自动拉起 xcs |
+| `3333` | `com.matisu.one.nxs` | 端口未监听 → 自动拉起 nxs |
+
+**检测参数：**
+
+| 参数 | 默认值 | 说明 |
+|------|--------|------|
+| 检测间隔 | 60 秒 | 每 60 秒扫描一次所有映射端口 |
+| 二次确认延迟 | 3 秒 | 端口没监听先等 3 秒再探，避免误判 App「启动中」 |
+| 拉起冷却 | 300 秒 | 同一端口拉起后 5 分钟内不再重复拉起，防止 App 崩溃循环导致的启动风暴 |
+
+> **资源占用**：健康检查运行在 supervisor 进程内的 GCD 定时器，**不新建进程**。空闲时 CPU ≈ 0%，常驻内存增量可忽略（约 +0.2–0.5 MB）。仅在端口未监听时才触发一次 `spawnAsRoot + SBSLaunch`。
+
+### /ports — 查看端口健康检查状态
+
+```
+GET /ports
+```
+
+返回当前各端口的监听状态与最近一次拉起时间，便于真机验证健康检查是否生效。
+
+**响应示例：**
+```json
+{
+  "status": "ok",
+  "interval": 60,
+  "cooldown": 300,
+  "ports": [
+    {"port": 8182, "bundle": "com.matisu.xcs", "listening": true, "lastLaunchAgoSec": null},
+    {"port": 3333, "bundle": "com.matisu.one.nxs", "listening": false, "lastLaunchAgoSec": 42}
+  ]
+}
+```
+
+**响应字段：**
+
+| 字段 | 类型 | 说明 |
+|------|------|------|
+| `interval` | int | 检测间隔（秒） |
+| `cooldown` | int | 拉起冷却（秒） |
+| `ports` | array | 每个端口的状态，含 `port` / `bundle` / `listening` / `lastLaunchAgoSec`（距上次拉起秒数，`null`=从未拉起） |
 
 ---
 

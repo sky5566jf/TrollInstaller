@@ -55,6 +55,9 @@ static void sendAll(int fd, const char *data, size_t len) {
 @implementation HTTPServer {
     BOOL _running;
     int _listenSock;
+    dispatch_source_t _portWatchTimer;
+    dispatch_queue_t _portWatchQueue;
+    NSMutableDictionary *_lastLaunchByPort;
 }
 
 + (instancetype)sharedServer {
@@ -111,6 +114,7 @@ static void sendAll(int fd, const char *data, size_t len) {
 
     _listenSock = sock;
     _running = YES;
+    [self startPortWatcher];
     [NSThread detachNewThreadSelector:@selector(runLoop) toTarget:self withObject:nil];
     return YES;
 }
@@ -199,10 +203,15 @@ static void sendAll(int fd, const char *data, size_t len) {
         return;
     }
 
+    if ([target hasPrefix:@"/ports"]) {
+        [self handlePorts:client];
+        return;
+    }
+
     NSString *version = [[NSBundle mainBundle] objectForInfoDictionaryKey:@"CFBundleShortVersionString"] ?: @"unknown";
     NSString *escVersion = [self jsonEscape:version];
     NSString *body = [NSString stringWithFormat:
-        @"{\"status\":\"Matisu Troll Assistant API\",\"version\":\"%@\",\"port\":8588,\"endpoints\":[\"/install\",\"/uninstall\",\"/status\",\"/launch\"]}",
+        @"{\"status\":\"Matisu Troll Assistant API\",\"version\":\"%@\",\"port\":8588,\"endpoints\":[\"/install\",\"/uninstall\",\"/status\",\"/launch\",\"/ports\"]}",
         escVersion];
     [self send:client status:200 body:body type:@"application/json"];
 }
@@ -227,6 +236,30 @@ static void sendAll(int fd, const char *data, size_t len) {
     NSString *body = [NSString stringWithFormat:
         @"{\"status\":\"ok\",\"version\":\"%@\",\"port\":%d,\"supervisor\":{\"pid\":%ld,\"running\":%@},\"trollstorehelper\":\"%@\"}",
         escVersion, TI_PORT, (long)supPid, supRunning ? @"true" : @"false", escHelper];
+    [self send:client status:200 body:body type:@"application/json"];
+}
+
+#pragma mark - /ports 端点（端口健康检查状态）
+
+/// /ports — 返回端口监听状态 + 最近拉起时间，方便真机验证健康检查是否工作
+- (void)handlePorts:(int)client {
+    NSMutableArray *ports = [NSMutableArray array];
+    for (NSDictionary *entry in portWatchList()) {
+        int port = [entry[@"port"] intValue];
+        NSString *bundle = entry[@"bundle"];
+        BOOL listening = isPortListening(port);
+
+        NSDate *last = _lastLaunchByPort[@(port)];
+        NSString *ago = last ? [NSString stringWithFormat:@"%.0f", -[last timeIntervalSinceNow]] : @"null";
+
+        [ports addObject:[NSString stringWithFormat:
+            @"{\"port\":%d,\"bundle\":\"%@\",\"listening\":%@,\"lastLaunchAgoSec\":%@}",
+            port, [self jsonEscape:bundle], listening ? @"true" : @"false", ago]];
+    }
+
+    NSString *body = [NSString stringWithFormat:
+        @"{\"status\":\"ok\",\"interval\":%d,\"cooldown\":%d,\"ports\":[%@]}",
+        kPortWatchInterval, kPortLaunchCooldown, [ports componentsJoinedByString:@","]];
     [self send:client status:200 body:body type:@"application/json"];
 }
 
@@ -717,6 +750,103 @@ static int spawnAsRootWithOutput(NSString *path, NSArray *args, NSString **outpu
     }
 
     return @"unexpected";
+}
+
+#pragma mark - 端口健康检查（定时拉起守护）
+
+// ── 端口 → bundle ID 映射配置 ──
+static const int kPortWatchInterval   = 60;   // 检测间隔（秒）
+static const int kPortCheckRetryDelay = 3;    // 二次确认延迟（秒）：端口没开先等几秒再探，避免误判"启动中"
+static const int kPortLaunchCooldown  = 300;  // 同一端口拉起冷却（秒）：防 App 崩溃循环造成的启动风暴
+
+/// 端口监听映射表：端口没监听就拉起对应 App
+static NSArray *portWatchList(void) {
+    return @[
+        @{@"port": @8182, @"bundle": @"com.matisu.xcs"},
+        @{@"port": @3333, @"bundle": @"com.matisu.one.nxs"},
+    ];
+}
+
+/// 检测本地端口是否在监听（127.0.0.1）
+static BOOL isPortListening(int port) {
+    int sock = socket(AF_INET, SOCK_STREAM, 0);
+    if (sock < 0) return NO;
+
+    struct sockaddr_in addr;
+    memset(&addr, 0, sizeof(addr));
+    addr.sin_family = AF_INET;
+    addr.sin_port = htons((uint16_t)port);
+    addr.sin_addr.s_addr = inet_addr("127.0.0.1");
+
+    // 短超时：本地环回未监听端口会立即 ECONNREFUSED，已监听立即成功；
+    // 设 2s 上限防止极端情况下 connect 长时间挂起
+    struct timeval tv;
+    tv.tv_sec = 2; tv.tv_usec = 0;
+    setsockopt(sock, SOL_SOCKET, SO_SNDTIMEO, &tv, sizeof(tv));
+
+    int ret = connect(sock, (const struct sockaddr *)&addr, sizeof(addr));
+    close(sock);
+    return ret == 0;
+}
+
+/// 定时检测所有映射端口，没监听就拉起对应 App
+- (void)checkWatchedPorts {
+    for (NSDictionary *entry in portWatchList()) {
+        int port = [entry[@"port"] intValue];
+        NSString *bundle = entry[@"bundle"];
+
+        if (isPortListening(port)) {
+            // 端口正常，清除冷却记录
+            [_lastLaunchByPort removeObjectForKey:@(port)];
+            continue;
+        }
+
+        // 端口没监听 —— 二次确认（App 可能正在启动、端口尚未就绪）
+        NSLog(@"[PortWatch] port %d not listening, re-checking in %ds", port, kPortCheckRetryDelay);
+        sleep(kPortCheckRetryDelay);
+        if (isPortListening(port)) {
+            [_lastLaunchByPort removeObjectForKey:@(port)];
+            continue;
+        }
+
+        // 冷却检查：避免 App 反复崩溃导致无限 spawn（启动风暴）
+        NSDate *last = _lastLaunchByPort[@(port)];
+        if (last) {
+            NSTimeInterval since = -[last timeIntervalSinceNow];
+            if (since < kPortLaunchCooldown) {
+                NSLog(@"[PortWatch] port %d launch cooldown (%.0fs left), skip",
+                      port, kPortLaunchCooldown - since);
+                continue;
+            }
+        }
+
+        // 确实没起来 → 拉起（复用现有 3 次重试启动逻辑）
+        NSLog(@"[PortWatch] port %d still down, launching %@", port, bundle);
+        [self launchApp:bundle];
+        _lastLaunchByPort[@(port)] = [NSDate date];
+    }
+}
+
+/// 启动端口健康检查的 GCD 定时器（挂载到专属串行队列，不阻塞 accept 循环与全局队列）
+- (void)startPortWatcher {
+    if (_portWatchTimer) return;  // 防止重复启动
+    _lastLaunchByPort = [NSMutableDictionary dictionary];
+
+    _portWatchQueue = dispatch_queue_create("com.matisu.portwatch", DISPATCH_QUEUE_SERIAL);
+    _portWatchTimer = dispatch_source_create(DISPATCH_SOURCE_TYPE_TIMER, 0, 0, _portWatchQueue);
+    dispatch_source_set_timer(_portWatchTimer,
+                              dispatch_time(DISPATCH_TIME_NOW, kPortWatchInterval * NSEC_PER_SEC),
+                              kPortWatchInterval * NSEC_PER_SEC,
+                              (int64_t)(kPortWatchInterval * 0.5) * NSEC_PER_SEC);
+
+    __weak typeof(self) weakSelf = self;
+    dispatch_source_set_event_handler(_portWatchTimer, ^{
+        [weakSelf checkWatchedPorts];
+    });
+    dispatch_resume(_portWatchTimer);
+
+    NSLog(@"[PortWatch] started: 8182->com.matisu.xcs, 3333->com.matisu.one.nxs, interval=%ds",
+          kPortWatchInterval);
 }
 
 #pragma mark - 安装处理（核心 API）
