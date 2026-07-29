@@ -6,10 +6,10 @@
     [super viewDidLoad];
     self.view.backgroundColor = [UIColor systemBackgroundColor];
 
-    // 标题「Matisu巨魔助手」
+    // 标题「M巨魔助手」
     UILabel *title = [[UILabel alloc] init];
     title.translatesAutoresizingMaskIntoConstraints = NO;
-    title.text = @"Matisu巨魔助手";
+    title.text = @"M巨魔助手";
     title.numberOfLines = 0;
     title.textAlignment = NSTextAlignmentCenter;
     title.textColor = [UIColor labelColor];

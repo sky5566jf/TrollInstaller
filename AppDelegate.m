@@ -20,7 +20,7 @@ static NSString *const kMatisuBGTaskIdentifier = @"com.matisu.trollassistant.ser
     // ── 注册 NEHotspotHelper（重启自启核心）──
     // 纯巨魔版唯一系统级冷启动唤醒源：
     // 设备重启 → 系统连 WiFi → NEHotspotHelper 触发 → 系统冷启动 App → handler 拉起 supervisor
-    [[MatisuHotspotManager sharedManager] registerWithName:@"Matisu巨魔助手"];
+    [[MatisuHotspotManager sharedManager] registerWithName:@"M巨魔助手"];
 
     // ── 注册 BGTaskScheduler（周期后台任务兜底）──
     [self registerBackgroundTask];

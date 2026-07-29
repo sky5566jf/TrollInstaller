@@ -3,9 +3,9 @@
 <plist version="1.0">
 <dict>
     <key>CFBundleName</key>
-    <string>Maitsu巨魔助手</string>
+    <string>M巨魔助手</string>
     <key>CFBundleDisplayName</key>
-    <string>Maitsu巨魔助手</string>
+    <string>M巨魔助手</string>
     <key>CFBundleIdentifier</key>
     <string>com.matisu.trollassistant</string>
 	<key>CFBundleVersion</key>

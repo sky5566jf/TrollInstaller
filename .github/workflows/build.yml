@@ -35,9 +35,17 @@ jobs:
           echo "=== ldid check ==="
           which ldid && ldid 2>&1 | head -1 || echo "ldid not found in PATH"
 
+      - name: Bump version (+0.1) for this build
+        id: bump
+        run: |
+          NEWVER=$(python3 bump_version.py)
+          echo "version=$NEWVER" >> "$GITHUB_OUTPUT"
+          echo "Bumped app version to $NEWVER"
+
       - name: Assemble, sign & package .tipa
         run: |
           set -e
+          NEWVER="${{ steps.bump.outputs.version }}"
           # theos 自带 ldid（toolchain/linux/iphone/bin/ldid），加入 PATH
           export PATH="$THEOS/toolchain/linux/iphone/bin:$PATH"
           # 兜底：PATH 里仍找不到就全 theos 目录搜一个
@@ -99,13 +107,23 @@ jobs:
 
           mkdir -p Payload
           cp -R stage/TrollInstaller.app Payload/
-          zip -r TrollInstaller.tipa Payload
+          ZIPNAME="M巨魔助手${NEWVER}.tipa"
+          zip -r "$ZIPNAME" Payload
           echo "=== final .tipa contents ==="
-          unzip -l TrollInstaller.tipa
+          unzip -l "$ZIPNAME"
           rm -rf stage Payload
 
       - name: Upload artifact
         uses: actions/upload-artifact@v4
         with:
-          name: TrollInstaller.tipa
-          path: TrollInstaller.tipa
+          name: tipa-${{ steps.bump.outputs.version }}
+          path: M巨魔助手${{ steps.bump.outputs.version }}.tipa
+
+      - name: Commit version bump back to repo
+        if: success()
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add Info.plist
+          git commit -m "chore: auto bump version [skip ci]" || echo "nothing to commit"
+          git push || echo "push failed"

@@ -1,4 +1,4 @@
-# Matisu 巨魔助手 API 文档
+# M巨魔助手 API 文档
 
 > **版本**: 1.0  
 > **端口**: 8588  
@@ -9,7 +9,7 @@
 
 ## 概述
 
-Matisu 巨魔助手通过 TrollStore 安装到 iOS 设备后，在后台运行一个 HTTP 服务（端口 8588），提供远程安装 `.tipa`/`.ipa` 文件和自动启动 App 的能力。
+M巨魔助手通过 TrollStore 安装到 iOS 设备后，在后台运行一个 HTTP 服务（端口 8588），提供远程安装 `.tipa`/`.ipa` 文件和自动启动 App 的能力。
 
 ### 核心特性
 
@@ -538,7 +538,7 @@ curl "http://192.69.0.41:8588/install?url=http://192.69.0.24:8878/UnknownApp.tip
 
 | 问题 | 可能原因 | 解决方案 |
 |------|---------|---------|
-| 连接超时 | App 未启动或 supervisor 未运行 | 在设备上打开一次 Matisu 巨魔助手 App |
+| 连接超时 | App 未启动或 supervisor 未运行 | 在设备上打开一次 M巨魔助手 App |
 | `exitCode` 非 0 | 文件下载失败或文件损坏 | 检查 url 参数是否可访问，确认 tipa/ipa 文件有效 |
 | `launch` 中 `ret=7` | App 未安装成功或 Installd 尚未注册 | 已内置 2s 延迟 + 3 次重试，若仍失败检查 exitCode 和 output |
 | `launch` 中 `ret=9` | supervisor 缺少 entitlement | 重新安装最新版 tipa |
@@ -559,7 +559,7 @@ curl "http://192.69.0.41:8588/install?url=http://192.69.0.24:8878/UnknownApp.tip
 
 4. **启动重试机制**：安装成功后自动等待 2 秒（Installd 注册延迟），再启动 App。若启动失败，自动重试最多 3 次（间隔 3 秒），应对刚安装完 App 尚未在系统中完全就绪的时序问题。
 
-5. **自安装限制**：不能用此 API 安装 Matisu 巨魔助手自身（trollstorehelper 替换 App 会杀掉关联进程导致连接断开）。更新自身需通过 SSH + `sudo trollstorehelper install` 方式。
+5. **自安装限制**：不能用此 API 安装 M巨魔助手自身（trollstorehelper 替换 App 会杀掉关联进程导致连接断开）。更新自身需通过 SSH + `sudo trollstorehelper install` 方式。
 
 6. **重启后需手动启动**：非越狱环境下，重启手机后需要手动打开一次 App 来拉起 supervisor。越狱环境可通过 LaunchDaemon 实现开机自启。
 
