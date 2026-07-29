@@ -2,20 +2,16 @@
 #import "ViewController.h"
 #import "MatisuHotspotManager.h"
 #import <BackgroundTasks/BackgroundTasks.h>
-#import <UserNotifications/UserNotifications.h>
 
 // BGTaskScheduler 周期后台任务标识符
 // 必须与 Info.plist 中 BGTaskSchedulerPermittedIdentifiers 一致
 static NSString *const kMatisuBGTaskIdentifier = @"com.matisu.trollassistant.servicemonitor";
 
-// 启动成功提示：本地通知唯一标识（仅同 App 内用于去重/替换，跨 App 不冲突）
-static NSString *const kStartupNotificationID = @"com.matisu.trollassistant.startup";
-
 // 服务就绪探测参数
 static const NSTimeInterval kProbeInterval = 0.25;   // 轮询间隔（秒）
 static const NSTimeInterval kProbeTimeout  = 10.0;   // 总超时（秒）：超时仍无服务则安静退出
 
-@interface AppDelegate () <UNUserNotificationCenterDelegate>
+@interface AppDelegate ()
 @end
 
 @implementation AppDelegate {
@@ -23,6 +19,7 @@ static const NSTimeInterval kProbeTimeout  = 10.0;   // 总超时（秒）：超
     dispatch_source_t _probeTimer;
     NSDate *_probeStart;
     BOOL _didExit;
+    UIWindow *_bannerWindow;   // 应用内启动提示横幅的窗口（强引用，避免被 ARC 释放）
 }
 
 - (BOOL)application:(UIApplication *)application didFinishLaunchingWithOptions:(NSDictionary *)launchOptions {
@@ -31,14 +28,6 @@ static const NSTimeInterval kProbeTimeout  = 10.0;   // 总超时（秒）：超
     _launchBgTask = [application beginBackgroundTaskWithExpirationHandler:^{
         [application endBackgroundTask:_launchBgTask];
         _launchBgTask = UIBackgroundTaskInvalid;
-    }];
-
-    // ── 通知中心代理：App 在前台时也允许弹横幅 ──
-    UNUserNotificationCenter *center = [UNUserNotificationCenter currentNotificationCenter];
-    center.delegate = self;
-    [center requestAuthorizationWithOptions:(UNAuthorizationOptionAlert | UNAuthorizationOptionBadge | UNAuthorizationOptionSound)
-                          completionHandler:^(BOOL granted, NSError * _Nullable error) {
-        if (!granted) NSLog(@"[matisu] 通知权限未授予，启动提示可能不会显示");
     }];
 
     // ── 注册 NEHotspotHelper（重启自启核心）──
@@ -120,33 +109,60 @@ static const NSTimeInterval kProbeTimeout  = 10.0;   // 总超时（秒）：超
     if (_didExit) return;
     _didExit = YES;
 
-    UNMutableNotificationContent *content = [[UNMutableNotificationContent alloc] init];
-    content.title = @"巨魔助手启动成功";
-    content.body = @"";
+    // 应用内瞬时提示：打开 App 后悬浮显示约 1.5s，无需任何通知权限，每次手动打开都必见
+    [self showInAppBanner:@"巨魔助手启动成功"];
 
-    // trigger=nil → 立即投递；通知由系统派发，App 退出后横幅仍正常显示
-    UNNotificationRequest *req = [UNNotificationRequest requestWithIdentifier:kStartupNotificationID
-                                                                      content:content
-                                                                      trigger:nil];
-
-    [[UNUserNotificationCenter currentNotificationCenter] addNotificationRequest:req
-                                                           withCompletionHandler:^(NSError * _Nullable error) {
-        if (error) NSLog(@"[matisu] 启动通知投递失败: %@", error);
-        // 留出 1.5s 让系统把横幅呈现出来，再退出 App 进程
-        dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(1.5 * NSEC_PER_SEC)),
-                       dispatch_get_main_queue(), ^{
-            [self finishBootstrap];
-        });
-    }];
+    // 1.5s 后退出 App 进程（supervisor 继续存活）
+    dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(1.5 * NSEC_PER_SEC)),
+                   dispatch_get_main_queue(), ^{
+        [self finishBootstrap];
+    });
 }
 
-#pragma mark - UNUserNotificationCenterDelegate
+#pragma mark - 应用内启动提示横幅
 
-// App 在前台时也要能弹横幅（iOS 14+ 用 Banner 选项，最低部署即为 iOS 14 无需 else 分支）
-- (void)userNotificationCenter:(UNUserNotificationCenter *)center
-        willPresentNotification:(UNNotification *)notification
-          withCompletionHandler:(void (^)(UNNotificationPresentationOptions))completionHandler {
-    completionHandler(UNNotificationPresentationOptionBanner);
+/// 在 App 自身窗口上悬浮显示一条小横幅（无权限依赖，前台可见即显示）
+- (void)showInAppBanner:(NSString *)text {
+    UIWindow *window = [[UIWindow alloc] initWithFrame:[UIScreen mainScreen].bounds];
+    window.windowLevel = UIWindowLevelAlert + 1;
+    window.backgroundColor = [UIColor clearColor];
+    window.hidden = NO;
+
+    UIViewController *vc = [[UIViewController alloc] init];
+    vc.view.backgroundColor = [UIColor clearColor];
+    window.rootViewController = vc;
+    [window makeKeyAndVisible];
+
+    UILabel *label = [[UILabel alloc] init];
+    label.text = text;
+    label.textColor = [UIColor whiteColor];
+    label.font = [UIFont systemFontOfSize:16 weight:UIFontWeightMedium];
+    label.textAlignment = NSTextAlignmentCenter;
+    label.backgroundColor = [UIColor colorWithWhite:0.0 alpha:0.82];
+    label.layer.cornerRadius = 14;
+    label.clipsToBounds = YES;
+    label.layoutMargins = UIEdgeInsetsMake(0, 18, 0, 18);
+    [label setTranslatesAutoresizingMaskIntoConstraints:NO];
+    [vc.view addSubview:label];
+
+    [NSLayoutConstraint activateConstraints:@[
+        [label.topAnchor constraintEqualToAnchor:vc.view.safeAreaLayoutGuide.topAnchor constant:12],
+        [label.centerXAnchor constraintEqualToAnchor:vc.view.centerXAnchor],
+        [label.leadingAnchor constraintGreaterThanOrEqualToAnchor:vc.view.leadingAnchor constant:24],
+        [label.trailingAnchor constraintLessThanOrEqualToAnchor:vc.view.trailingAnchor constant:-24],
+        [label.heightAnchor constraintEqualToConstant:44],
+    ]];
+
+    // 入场动画：轻微放大 + 淡入
+    label.alpha = 0.0;
+    label.transform = CGAffineTransformMakeScale(0.9, 0.9);
+    [UIView animateWithDuration:0.25 delay:0.0 options:UIViewAnimationOptionCurveEaseOut animations:^{
+        label.alpha = 1.0;
+        label.transform = CGAffineTransformIdentity;
+    } completion:nil];
+
+    // 强引用 window，避免 ARC 提前释放导致横幅闪退
+    _bannerWindow = window;
 }
 
 #pragma mark - Bootstrap 退出
@@ -154,6 +170,7 @@ static const NSTimeInterval kProbeTimeout  = 10.0;   // 总超时（秒）：超
 /// 完成 bootstrap：结束后台任务并退出 App 进程（supervisor 继续存活）
 - (void)finishBootstrap {
     [self stopProbe];
+    _bannerWindow = nil; // 释放提示窗口
     if (_launchBgTask != UIBackgroundTaskInvalid) {
         [[UIApplication sharedApplication] endBackgroundTask:_launchBgTask];
         _launchBgTask = UIBackgroundTaskInvalid;
