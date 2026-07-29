@@ -46,7 +46,20 @@ def load_font(size):
 
 
 def round_rect(draw, box, radius, fill):
-    draw.rounded_rectangle(box, radius=radius, fill=fill)
+    """绘制圆角矩形，兼容旧版 Pillow（<9.2 无 rounded_rectangle）。"""
+    x1, y1, x2, y2 = box
+    try:
+        # Pillow >= 9.2
+        draw.rounded_rectangle(box, radius=radius, fill=fill)
+    except AttributeError:
+        # 手动模拟圆角矩形：4 个角圆弧 + 中间矩形
+        r = radius
+        draw.rectangle([x1 + r, y1, x2 - r, y2], fill=fill)
+        draw.rectangle([x1, y1 + r, x2, y2 - r], fill=fill)
+        draw.ellipse([x1, y1, x1 + 2 * r, y1 + 2 * r], fill=fill)
+        draw.ellipse([x2 - 2 * r, y1, x2, y1 + 2 * r], fill=fill)
+        draw.ellipse([x1, y2 - 2 * r, x1 + 2 * r, y2], fill=fill)
+        draw.ellipse([x2 - 2 * r, y2 - 2 * r, x2, y2], fill=fill)
 
 
 def draw_badge(rgba, version):

@@ -78,6 +78,7 @@ jobs:
           cp "$SUP"                    stage/TrollInstaller.app/matisusupervisor
           cp Info.plist                stage/TrollInstaller.app/Info.plist
           # 用 make_icon.py 绘制版本号角标 + 256色量化压缩（~400KB vs 原 1.28MB）
+          pip3 install --quiet Pillow
           python3 make_icon.py --in AppIcon.png --out stage/TrollInstaller.app/AppIcon.png --version "$NEWVER"
 
           # ── ldid ad-hoc 签名 + 嵌入 entitlements ──
